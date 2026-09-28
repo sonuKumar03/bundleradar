@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -29,9 +28,9 @@ func (p *ViteParser) Name() string {
 }
 
 func (p *ViteParser) Detect(sample []byte, distDir string) bool {
-	// Vite manifests have "file", "isEntry", and typically "src"
-	return bytes.Contains(sample, []byte(`"file"`)) &&
-		(bytes.Contains(sample, []byte(`"isEntry"`)) || bytes.Contains(sample, []byte(`"isDynamicEntry"`)))
+	// Vite manifests declare per-entry objects carrying "file" and entry flags.
+	return hasJSONKeys(sample, "file") &&
+		(hasJSONKeys(sample, "isEntry") || hasJSONKeys(sample, "isDynamicEntry"))
 }
 
 func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundle, error) {

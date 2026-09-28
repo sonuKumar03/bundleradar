@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -48,7 +47,9 @@ func (p *EsbuildParser) Name() string {
 }
 
 func (p *EsbuildParser) Detect(sample []byte, distDir string) bool {
-	return bytes.Contains(sample, []byte(`"inputs"`)) && (bytes.Contains(sample, []byte(`"outputs"`)) || bytes.Contains(sample, []byte(`"bytes":`)))
+	// The esbuild-family signature is a top-level "inputs" map, which always
+	// appears in the head sample and never in webpack/vite stats.
+	return hasJSONKeys(sample, "inputs")
 }
 
 func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bundle, error) {
