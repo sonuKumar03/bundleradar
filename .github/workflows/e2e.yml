@@ -68,7 +68,9 @@ jobs:
         run: go test -v -count=1 ./...
 
       - name: Build bundleradar CLI
-        run: go build -o bundleradar .
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          go build -ldflags="-X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o bundleradar .
 
       - name: Verify bundleradar CLI on real Nx workspace
         run: |

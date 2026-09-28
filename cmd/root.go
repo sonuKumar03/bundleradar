@@ -6,10 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/sonuKumar03/bundleradar/internal/core"
 	"github.com/sonuKumar03/bundleradar/pkg/bundleradar"
 )
 
@@ -21,76 +21,27 @@ const (
 	ExitCodeExecution       = 3 // Runtime failure, missing build artifacts, I/O error
 )
 
-// PolicyViolationError indicates a budget breach or disallowed package policy violation.
-type PolicyViolationError struct {
-	Err error
-}
+// PolicyViolationError is a CLI-level alias of the core typed error.
+type PolicyViolationError = core.PolicyViolationError
 
-func (e *PolicyViolationError) Error() string {
-	if e.Err != nil {
-		return e.Err.Error()
-	}
-	return "bundle policy violation"
-}
-
-func (e *PolicyViolationError) Unwrap() error {
-	return e.Err
-}
-
-// UsageError indicates invalid flags, CLI arguments, or user configuration.
-type UsageError struct {
-	Err error
-}
-
-func (e *UsageError) Error() string {
-	if e.Err != nil {
-		return e.Err.Error()
-	}
-	return "usage error"
-}
-
-func (e *UsageError) Unwrap() error {
-	return e.Err
-}
+// UsageError is a CLI-level alias of the core typed error.
+type UsageError = core.UsageError
 
 // MapErrorToExitCode maps an error to its documented numeric exit code.
+// Classification is type-based: UsageError (or Cobra flag errors) -> 2,
+// PolicyViolationError -> 1, everything else -> 3.
 func MapErrorToExitCode(err error) int {
 	if err == nil {
 		return ExitCodeSuccess
 	}
-	var pErr *PolicyViolationError
+	var pErr *core.PolicyViolationError
 	if errors.As(err, &pErr) {
 		return ExitCodePolicyViolation
 	}
-	var uErr *UsageError
+	var uErr *core.UsageError
 	if errors.As(err, &uErr) {
 		return ExitCodeUsage
 	}
-
-	msg := err.Error()
-	if strings.Contains(msg, "unknown flag") ||
-		strings.Contains(msg, "unknown shorthand flag") ||
-		strings.Contains(msg, "flag needs an argument") ||
-		strings.Contains(msg, "invalid argument") ||
-		strings.Contains(msg, "accepts ") ||
-		strings.Contains(msg, "requires ") ||
-		strings.Contains(msg, "required") ||
-		strings.Contains(msg, "unsupported") ||
-		strings.Contains(msg, "cannot be empty") ||
-		strings.Contains(msg, "invalid --") ||
-		strings.Contains(msg, "must be positive") ||
-		strings.Contains(msg, "config ") && strings.Contains(msg, "unknown field") ||
-		strings.Contains(msg, "ambiguous") {
-		return ExitCodeUsage
-	}
-
-	if strings.Contains(msg, "budget breached") ||
-		strings.Contains(msg, "regression limits breached") ||
-		strings.Contains(msg, "policy violation") ||
-		strings.Contains(msg, "rule violation") {
-		return ExitCodePolicyViolation
-	}
-
 	return ExitCodeExecution
 }
 
@@ -106,6 +57,11 @@ estimates Gzip wire transfer sizes, tracks regressions, and enforces bundle size
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	// Classify Cobra flag/argument errors as typed usage errors so exit-code
+	// mapping never depends on error message strings.
+	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		return &UsageError{Err: err}
+	})
 	root.AddCommand(
 		newScanCommand(),
 		newDiffCommand(),

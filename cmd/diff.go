@@ -26,11 +26,11 @@ func newDiffCommand() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("current stats path is required")
+				return &UsageError{Err: fmt.Errorf("current stats path is required")}
 			}
 			currentPath := args[0]
 			if against == "" {
-				return fmt.Errorf("--against <baseline_path_or_git_ref> is required")
+				return &UsageError{Err: fmt.Errorf("--against <baseline_path_or_git_ref> is required")}
 			}
 
 			client := bundleradar.New()

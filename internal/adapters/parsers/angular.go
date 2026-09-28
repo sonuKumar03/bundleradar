@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
@@ -68,12 +69,21 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		Bundler: "angular",
 	})
 
+	// Iterate outputs in sorted key order so chunk/module ordering is
+	// deterministic for identical metafiles (map iteration is randomized).
+	sortedOutputs := make([]string, 0, len(meta.Outputs))
+	for outPath := range meta.Outputs {
+		sortedOutputs = append(sortedOutputs, outPath)
+	}
+	slices.Sort(sortedOutputs)
+
 	// 1. Identify initial entrypoint roots:
 	// In Angular 17+, roots are main JS, polyfills JS, and global styles CSS.
 	initialRoots := make([]string, 0)
 	isInitial := make(map[string]bool)
 
-	for outPath, out := range meta.Outputs {
+	for _, outPath := range sortedOutputs {
+		out := meta.Outputs[outPath]
 		ext := strings.ToLower(filepath.Ext(outPath))
 		if ext == ".map" {
 			bundle.AddAsset(core.Asset{
@@ -148,7 +158,8 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 	// 2.5 Compute shortest import ingress path from entrypoint roots
 	rootInputs := make([]string, 0)
-	for outPath, out := range meta.Outputs {
+	for _, outPath := range sortedOutputs {
+		out := meta.Outputs[outPath]
 		if !isInitial[outPath] && !isInitial[filepath.Base(outPath)] {
 			continue
 		}
@@ -207,7 +218,8 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	seenModules := make(map[string]*core.Module)
 
 	// 3. Process outputs: Separate code chunks from CSS and auxiliary assets
-	for outPath, out := range meta.Outputs {
+	for _, outPath := range sortedOutputs {
+		out := meta.Outputs[outPath]
 		ext := strings.ToLower(filepath.Ext(outPath))
 		if ext == ".map" {
 			continue
@@ -254,8 +266,14 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			ModuleIDs: make([]string, 0, len(out.Inputs)),
 		}
 
-		// Process modules in chunk and deduplicate across chunks
-		for inPath, inBytes := range out.Inputs {
+		// Process modules in chunk and deduplicate across chunks (sorted for determinism)
+		inPaths := make([]string, 0, len(out.Inputs))
+		for inPath := range out.Inputs {
+			inPaths = append(inPaths, inPath)
+		}
+		slices.Sort(inPaths)
+		for _, inPath := range inPaths {
+			inBytes := out.Inputs[inPath]
 			chunk.ModuleIDs = append(chunk.ModuleIDs, inPath)
 
 			if existing, ok := seenModules[inPath]; ok {
@@ -283,9 +301,14 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		bundle.AddChunk(chunk)
 	}
 
-	// Add deduplicated modules to bundle
-	for _, mod := range seenModules {
-		bundle.AddModule(*mod)
+	// Add deduplicated modules to bundle in sorted ID order for determinism
+	modIDs := make([]string, 0, len(seenModules))
+	for id := range seenModules {
+		modIDs = append(modIDs, id)
+	}
+	slices.Sort(modIDs)
+	for _, id := range modIDs {
+		bundle.AddModule(*seenModules[id])
 	}
 
 	// 4. Register primary application entrypoint

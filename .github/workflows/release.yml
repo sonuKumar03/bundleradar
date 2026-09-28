@@ -41,7 +41,9 @@ jobs:
         run: go test -v . -run TestDocumentationContract -count=1
 
       - name: Build Binary
-        run: go build -o bundleradar .
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          go build -ldflags="-X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o bundleradar .
 
       - name: Validate install.sh
         run: sh -n install.sh
@@ -97,7 +99,7 @@ jobs:
               EXE_NAME="bundleradar.exe"
             fi
 
-            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o "${TMP_BUILD}/${EXE_NAME}" .
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w -X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o "${TMP_BUILD}/${EXE_NAME}" .
             cp README.md LICENSE "${TMP_BUILD}/"
 
             if [ "$GOOS" = "windows" ]; then

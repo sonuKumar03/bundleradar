@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
+	"github.com/sonuKumar03/bundleradar/internal/core/diff"
 )
 
 // BuildCheckpoint represents a point-in-time bundle scan checkpoint.
@@ -243,14 +244,22 @@ func (s *Server) handleGetDiff(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(diff)
 }
 
+// computeDiff delegates to core/diff.Calculate so the UI shares exact diff
+// semantics with the CLI and MCP, then reshapes the result into the wire DTO.
+// Status classification is core/diff.Status; here we additionally track
+// per-package initial-byte movement, which is a UI-only view over the same data.
 func computeDiff(baseCP, targetCP *BuildCheckpoint) *DiffDTO {
+	baseBundle := bundleFromCheckpoint(baseCP)
+	targetBundle := bundleFromCheckpoint(targetCP)
+
+	result := diff.Calculate(baseBundle, targetBundle, diff.Options{})
+
 	basePkgs := make(map[string]PackageDTO)
 	if baseCP.Bundle != nil {
 		for _, p := range baseCP.Bundle.TopPackages {
 			basePkgs[p.Name] = p
 		}
 	}
-
 	targetPkgs := make(map[string]PackageDTO)
 	if targetCP.Bundle != nil {
 		for _, p := range targetCP.Bundle.TopPackages {
@@ -258,54 +267,33 @@ func computeDiff(baseCP, targetCP *BuildCheckpoint) *DiffDTO {
 		}
 	}
 
-	allNamesMap := make(map[string]struct{})
-	for name := range basePkgs {
-		allNamesMap[name] = struct{}{}
-	}
-	for name := range targetPkgs {
-		allNamesMap[name] = struct{}{}
-	}
-
-	packageDiffs := make([]PackageDiffDTO, 0, len(allNamesMap))
-	for name := range allNamesMap {
-		var baseInit, targetInit, baseTotal, targetTotal int64
+	packageDiffs := make([]PackageDiffDTO, 0, len(result.Packages)+len(result.UnchangedPackages))
+	for _, pd := range append(append([]diff.PackageDelta{}, result.Packages...), result.UnchangedPackages...) {
+		var baseInit, targetInit int64
 		var ingress string
-
-		if bp, ok := basePkgs[name]; ok {
+		if bp, ok := basePkgs[pd.Name]; ok {
 			baseInit = bp.InitialBytes
-			baseTotal = bp.SizeBytes
 			ingress = bp.IngressPath
 		}
-		if tp, ok := targetPkgs[name]; ok {
+		if tp, ok := targetPkgs[pd.Name]; ok {
 			targetInit = tp.InitialBytes
-			targetTotal = tp.SizeBytes
 			if ingress == "" {
 				ingress = tp.IngressPath
 			}
 		}
 
-		deltaInit := targetInit - baseInit
-		deltaTotal := targetTotal - baseTotal
-
-		status := "UNCHANGED"
-		if baseInit > 0 && targetInit == 0 {
-			status = "ELIMINATED"
-		} else if targetInit < baseInit {
-			status = "REDUCED"
-		} else if targetInit > baseInit && baseInit > 0 {
-			status = "REGRESSED"
-		} else if baseInit == 0 && targetInit > 0 {
-			status = "ADDED"
-		}
+		// Reclassify on initial bytes, the metric this DTO exposes. Total-byte
+		// status from core/diff is retained in result.Packages for other views.
+		status := diff.Status(baseInit, targetInit)
 
 		packageDiffs = append(packageDiffs, PackageDiffDTO{
-			Name:               name,
+			Name:               pd.Name,
 			BaseInitialBytes:   baseInit,
 			TargetInitialBytes: targetInit,
-			DeltaInitialBytes:  deltaInit,
-			BaseTotalBytes:     baseTotal,
-			TargetTotalBytes:   targetTotal,
-			DeltaTotalBytes:    deltaTotal,
+			DeltaInitialBytes:  targetInit - baseInit,
+			BaseTotalBytes:     pd.BaseBytes,
+			TargetTotalBytes:   pd.CurrBytes,
+			DeltaTotalBytes:    pd.DeltaBytes,
 			Status:             status,
 			IngressPath:        ingress,
 		})
@@ -337,6 +325,41 @@ func computeDiff(baseCP, targetCP *BuildCheckpoint) *DiffDTO {
 		TotalDeltaBytes:     targetCP.TotalBytes - baseCP.TotalBytes,
 		PackageDiffs:        packageDiffs,
 	}
+}
+
+// bundleFromCheckpoint reconstructs a minimal core.Bundle from a checkpoint's
+// stored DTO so checkpoint diffs reuse core/diff.Calculate. Reconstructs only
+// modules and chunks, which is all Calculate consumes for package deltas.
+func bundleFromCheckpoint(cp *BuildCheckpoint) *core.Bundle {
+	if cp == nil || cp.Bundle == nil {
+		return nil
+	}
+	b := core.NewBundle(core.Metadata{})
+	chunkType := make(map[string]core.LoadType)
+	for _, ch := range cp.Bundle.Chunks {
+		id := ch.Name
+		lt := core.LoadTypeInitial
+		if ch.Type == "async" {
+			lt = core.LoadTypeAsync
+		}
+		b.AddChunk(core.Chunk{ID: id, Name: ch.Name, SizeBytes: ch.SizeBytes, GzipBytes: ch.GzipBytes, Type: lt})
+		chunkType[ch.Name] = lt
+	}
+	for _, p := range cp.Bundle.TopPackages {
+		mod := core.Module{
+			ID:        "pkg:" + p.Name,
+			Package:   p.Name,
+			SizeBytes: p.SizeBytes,
+			GzipBytes: p.GzipBytes,
+		}
+		if p.InitialBytes > 0 {
+			mod.ChunkIDs = []string{"__initial__"}
+		} else if p.AsyncBytes > 0 {
+			mod.ChunkIDs = []string{"__async__"}
+		}
+		b.AddModule(mod)
+	}
+	return b
 }
 
 func (s *Server) handleGetEvents(w http.ResponseWriter, r *http.Request) {

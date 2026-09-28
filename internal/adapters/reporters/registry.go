@@ -19,7 +19,7 @@ func New(format string) (core.Reporter, error) {
 	case "terminal", "text", "":
 		return &TerminalReporter{}, nil
 	default:
-		return nil, fmt.Errorf("unsupported reporter format %q (use terminal, markdown, github-pr, or json)", format)
+		return nil, core.UsageErrorf("unsupported reporter format %q (use terminal, markdown, github-pr, or json)", format)
 	}
 }
 
