@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
@@ -141,6 +142,51 @@ func TestBundleResolveEntrypoint(t *testing.T) {
 
 	if _, ok := b.ResolveEntrypoint("non-existent"); ok {
 		t.Errorf("ResolveEntrypoint(non-existent) expected false, got true")
+	}
+}
+
+// TestBundleIndexLifecycleAcrossSerialization ensures AddChunk/AddModule and
+// FindChunk/FindModule stay consistent when a Bundle is round-tripped through
+// JSON (which drops the unexported indexes). Regression guard for nil-map
+// panics and stale-index reads after deserialization.
+func TestBundleIndexLifecycleAcrossSerialization(t *testing.T) {
+	b := core.NewBundle(core.Metadata{Bundler: "esbuild"})
+	b.AddChunk(core.Chunk{ID: "a.js", Name: "a.js"})
+	b.AddModule(core.Module{ID: "src/a.ts"})
+
+	data, err := json.Marshal(b)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var restored core.Bundle
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// Lookups must rebuild the index after deserialization.
+	if _, ok := restored.FindChunk("a.js"); !ok {
+		t.Errorf("FindChunk after deserialize failed")
+	}
+	if _, ok := restored.FindModule("src/a.ts"); !ok {
+		t.Errorf("FindModule after deserialize failed")
+	}
+
+	// Mutating after deserialization (and after an index build) must not
+	// panic or corrupt lookups for pre-existing entries.
+	restored.AddChunk(core.Chunk{ID: "b.js", Name: "b.js"})
+	restored.AddModule(core.Module{ID: "src/b.ts"})
+
+	if _, ok := restored.FindChunk("a.js"); !ok {
+		t.Errorf("FindChunk(a.js) lost after post-deserialize mutation")
+	}
+	if _, ok := restored.FindChunk("b.js"); !ok {
+		t.Errorf("FindChunk(b.js) missing after post-deserialize mutation")
+	}
+	if _, ok := restored.FindModule("src/a.ts"); !ok {
+		t.Errorf("FindModule(src/a.ts) lost after post-deserialize mutation")
+	}
+	if _, ok := restored.FindModule("src/b.ts"); !ok {
+		t.Errorf("FindModule(src/b.ts) missing after post-deserialize mutation")
 	}
 }
 

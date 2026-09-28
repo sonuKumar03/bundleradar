@@ -111,12 +111,14 @@ func (b *Bundle) AddEntrypoint(name string, ep Entrypoint) {
 
 // AddChunk appends a chunk to the bundle.
 func (b *Bundle) AddChunk(c Chunk) {
+	b.ensureChunkIndex()
 	b.chunkIndex[c.ID] = len(b.Chunks)
 	b.Chunks = append(b.Chunks, c)
 }
 
 // AddModule appends a module to the bundle.
 func (b *Bundle) AddModule(m Module) {
+	b.ensureModuleIndex()
 	b.moduleIndex[m.ID] = len(b.Modules)
 	b.Modules = append(b.Modules, m)
 }
@@ -157,12 +159,7 @@ func (b *Bundle) TotalAppCodeBytes() int64 {
 
 // FindChunk retrieves a chunk by its ID.
 func (b *Bundle) FindChunk(id string) (Chunk, bool) {
-	if b.chunkIndex == nil {
-		b.chunkIndex = make(map[string]int)
-		for i, c := range b.Chunks {
-			b.chunkIndex[c.ID] = i
-		}
-	}
+	b.ensureChunkIndex()
 	idx, ok := b.chunkIndex[id]
 	if !ok || idx >= len(b.Chunks) {
 		return Chunk{}, false
@@ -172,17 +169,36 @@ func (b *Bundle) FindChunk(id string) (Chunk, bool) {
 
 // FindModule retrieves a module by its ID.
 func (b *Bundle) FindModule(id string) (Module, bool) {
-	if b.moduleIndex == nil {
-		b.moduleIndex = make(map[string]int)
-		for i, m := range b.Modules {
-			b.moduleIndex[m.ID] = i
-		}
-	}
+	b.ensureModuleIndex()
 	idx, ok := b.moduleIndex[id]
 	if !ok || idx >= len(b.Modules) {
 		return Module{}, false
 	}
 	return b.Modules[idx], true
+}
+
+// ensureChunkIndex lazily builds the chunk index. Bundles deserialized from
+// JSON (e.g. server checkpoints) have a nil index; both mutation and lookup
+// must rebuild it rather than panic or read stale positions.
+func (b *Bundle) ensureChunkIndex() {
+	if b.chunkIndex != nil {
+		return
+	}
+	b.chunkIndex = make(map[string]int, len(b.Chunks))
+	for i, c := range b.Chunks {
+		b.chunkIndex[c.ID] = i
+	}
+}
+
+// ensureModuleIndex lazily builds the module index (see ensureChunkIndex).
+func (b *Bundle) ensureModuleIndex() {
+	if b.moduleIndex != nil {
+		return
+	}
+	b.moduleIndex = make(map[string]int, len(b.Modules))
+	for i, m := range b.Modules {
+		b.moduleIndex[m.ID] = i
+	}
 }
 
 // TopPackages calculates the largest npm packages contributing to the bundle.
