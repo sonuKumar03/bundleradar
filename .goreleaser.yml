@@ -44,15 +44,20 @@ sboms:
   - artifacts: archive
 
 # Keyless cosign signing via GitHub OIDC (id-token: write in the workflow).
+# cosign v2 writes signature/certificate only when given explicit output
+# paths; relying on goreleaser's stdout capture leaves no .sig file.
 signs:
   - cmd: cosign
     signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
     artifacts: all
     args:
       - "sign-blob"
       - "--yes"
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
       - "${artifact}"
-    output: true
+    output: false
 
 release:
   github:
