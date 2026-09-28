@@ -468,3 +468,10 @@ go build -o bundleradar .
 ## 📄 License
 
 Released under the **MIT License**. Built with ❤️ for the Angular & developer performance community.
+
+---
+
+## 🙌 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test/lint
+commands, and release process. Release history is in [CHANGELOG.md](CHANGELOG.md).

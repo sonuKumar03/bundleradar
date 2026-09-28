@@ -1,0 +1,65 @@
+version: 2
+
+project_name: bundleradar
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion={{ .Version }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+# Asset naming must match install.sh's download URLs:
+#   bundleradar_${TAG#v}_${OS}_${ARCH}.{tar.gz,zip}
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+sboms:
+  - artifacts: archive
+
+# Keyless cosign signing via GitHub OIDC (id-token: write in the workflow).
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    artifacts: all
+    args:
+      - "sign-blob"
+      - "--yes"
+      - "${artifact}"
+    output: true
+
+release:
+  github:
+    owner: sonuKumar03
+    name: bundleradar
+  draft: false
+  prerelease: false
+  # Latest is decided by the workflow (highest semver only), not by
+  # release creation order — backport patches must not become "latest".
+  make_latest: "false"
