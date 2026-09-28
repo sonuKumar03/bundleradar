@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 )
@@ -57,10 +59,7 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	})
 
 	for _, wChunk := range stats.Chunks {
-		chunkName := fmt.Sprintf("%v", wChunk.ID)
-		if len(wChunk.Names) > 0 {
-			chunkName = wChunk.Names[0]
-		}
+		chunkName := chunkDisplayName(wChunk)
 		fileName := chunkName
 		if len(wChunk.Files) > 0 {
 			fileName = wChunk.Files[0]
@@ -83,6 +82,12 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		}
 
 		for _, m := range wChunk.Modules {
+			// Real webpack 5 stats nest aggregate rollups (e.g. "runtime
+			// modules", "dependent modules") alongside real modules; those
+			// carry no name and must not become phantom attribution rows.
+			if m.Name == "" {
+				continue
+			}
 			chunk.ModuleIDs = append(chunk.ModuleIDs, m.Name)
 			pkgName := extractPackageName(m.Name)
 
@@ -108,5 +113,41 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		}
 	}
 
+	// Register entrypoints. Entrypoint async bytes are only attributed when
+	// there is exactly one entrypoint, where every non-initial chunk is
+	// unambiguously lazy code for it; multi-entry stats carry no reliable
+	// per-entry chunk mapping, so they report 0 rather than a guess.
+	if len(bundle.Entrypoints) == 1 {
+		var asyncBytes int64
+		for _, ch := range bundle.Chunks {
+			if ch.Type == core.LoadTypeAsync {
+				asyncBytes += ch.SizeBytes
+			}
+		}
+		for name, ep := range bundle.Entrypoints {
+			ep.AsyncBytes = asyncBytes
+			bundle.Entrypoints[name] = ep
+		}
+	}
+
 	return bundle, nil
+}
+
+// chunkDisplayName derives a stable chunk identifier from real webpack 5 stats.
+// Modern stats may omit both id and names (e.g. optimization-generated async
+// chunks), so fall back to the emitted file name without extension.
+func chunkDisplayName(c WebpackChunk) string {
+	if len(c.Names) > 0 {
+		return c.Names[0]
+	}
+	if c.ID != nil {
+		return fmt.Sprintf("%v", c.ID)
+	}
+	if len(c.Files) > 0 {
+		if ext := filepath.Ext(c.Files[0]); ext != "" {
+			return strings.TrimSuffix(c.Files[0], ext)
+		}
+		return c.Files[0]
+	}
+	return "unknown"
 }
