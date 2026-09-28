@@ -110,13 +110,7 @@ func Create(rootDir string, ref string) (string, func(), error) {
 	}
 
 	// Symlink node_modules from repoRoot if present to avoid npm install in worktree
-	srcNodeModules := filepath.Join(repoRoot, "node_modules")
-	destNodeModules := filepath.Join(tempDir, "node_modules")
-	if fi, err := os.Stat(srcNodeModules); err == nil && fi.IsDir() {
-		if _, err := os.Stat(destNodeModules); os.IsNotExist(err) {
-			_ = os.Symlink(srcNodeModules, destNodeModules)
-		}
-	}
+	_ = SymlinkNodeModules(repoRoot, tempDir)
 
 	cleanup := func() {
 		rmCmd := exec.Command("git", "worktree", "remove", "--force", tempDir)
@@ -128,14 +122,62 @@ func Create(rootDir string, ref string) (string, func(), error) {
 	return tempDir, cleanup, nil
 }
 
-// RunBuild executes the build command within the specified worktree directory.
-func RunBuild(worktreeDir string, buildCmd string) error {
+// SymlinkNodeModules links srcDir/node_modules into destDir/node_modules when
+// the source exists and the destination does not. Callers use it to reuse a
+// real checkout's installed dependencies inside a temporary worktree, for both
+// the repo root and nested project directories (e.g. monorepo subfolders).
+func SymlinkNodeModules(srcDir, destDir string) error {
+	srcNodeModules := filepath.Join(srcDir, "node_modules")
+	destNodeModules := filepath.Join(destDir, "node_modules")
+	fi, err := os.Stat(srcNodeModules)
+	if err != nil || !fi.IsDir() {
+		return nil
+	}
+	if _, err := os.Stat(destNodeModules); !os.IsNotExist(err) {
+		return nil
+	}
+	if err := os.Symlink(srcNodeModules, destNodeModules); err != nil {
+		return fmt.Errorf("symlink node_modules %q -> %q: %w", srcNodeModules, destNodeModules, err)
+	}
+	return nil
+}
+
+// FindProjectDir locates the directory inside worktreeDir that owns the build,
+// given the stats file path relative to the worktree root. It walks up from the
+// stats file's directory to the worktree root and returns the nearest ancestor
+// containing a package.json, falling back to worktreeDir itself. This supports
+// monorepo layouts where the buildable project lives below the repo root.
+func FindProjectDir(worktreeDir, statsRelPath string) string {
+	startDir := filepath.Dir(filepath.Join(worktreeDir, statsRelPath))
+	if !strings.HasPrefix(filepath.ToSlash(startDir)+"/", filepath.ToSlash(worktreeDir)+"/") {
+		return worktreeDir
+	}
+
+	dir := startDir
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
+			return dir
+		}
+		if filepath.ToSlash(dir) == filepath.ToSlash(worktreeDir) {
+			return worktreeDir
+		}
+		parent := filepath.Dir(dir)
+		if filepath.ToSlash(parent) == filepath.ToSlash(dir) {
+			return worktreeDir
+		}
+		dir = parent
+	}
+}
+
+// RunBuild executes the build command within the specified directory.
+// The directory is typically the worktree project dir returned by FindProjectDir.
+func RunBuild(workDir string, buildCmd string) error {
 	if strings.TrimSpace(buildCmd) == "" {
-		pkgJSON := filepath.Join(worktreeDir, "package.json")
+		pkgJSON := filepath.Join(workDir, "package.json")
 		if _, err := os.Stat(pkgJSON); err == nil {
 			buildCmd = "npm run build"
 		} else {
-			return fmt.Errorf("no build command provided and package.json not found in %q", worktreeDir)
+			return fmt.Errorf("no build command provided and package.json not found in %q", workDir)
 		}
 	}
 
@@ -146,7 +188,7 @@ func RunBuild(worktreeDir string, buildCmd string) error {
 		cmd = exec.Command("sh", "-c", buildCmd)
 	}
 
-	cmd.Dir = worktreeDir
+	cmd.Dir = workDir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

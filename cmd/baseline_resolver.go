@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/worktree"
 	"github.com/sonuKumar03/bundleradar/pkg/bundleradar"
@@ -19,6 +20,7 @@ func resolveBaselineBundle(
 	currentStatsPath string,
 	bundler string,
 	buildCmd string,
+	buildDir string,
 	noBuild bool,
 	out io.Writer,
 	format string,
@@ -61,6 +63,34 @@ func resolveBaselineBundle(
 		return nil, noopCleanup, fmt.Errorf("create worktree for %q: %w", against, err)
 	}
 
+	// Map the current stats path to its location inside the worktree, relative
+	// to the repo root. This keeps worktree comparisons correct when the CLI is
+	// invoked from a nested project directory.
+	statsRel := currentStatsPath
+	if !filepath.IsAbs(currentStatsPath) {
+		if rel, relErr := filepath.Rel(repoRoot, filepath.Join(wd, currentStatsPath)); relErr == nil && !strings.HasPrefix(rel, "..") {
+			statsRel = rel
+		}
+	}
+	targetStatsInWt := filepath.Join(wtDir, statsRel)
+
+	// The build must run in the directory that owns package.json. Infer it by
+	// walking up from the stats location (monorepo support), or honor an
+	// explicit --build-dir override relative to the worktree root.
+	var buildWorkDir string
+	if buildDir != "" {
+		buildWorkDir = filepath.Join(wtDir, buildDir)
+		if _, err := os.Stat(buildWorkDir); err != nil {
+			cleanup()
+			return nil, noopCleanup, fmt.Errorf("--build-dir %q does not exist in ref %q: %w", buildDir, resolvedRef, err)
+		}
+	} else {
+		buildWorkDir = worktree.FindProjectDir(wtDir, filepath.ToSlash(statsRel))
+	}
+	if rel, relErr := filepath.Rel(wtDir, buildWorkDir); relErr == nil {
+		_ = worktree.SymlinkNodeModules(filepath.Join(repoRoot, rel), buildWorkDir)
+	}
+
 	if !noBuild {
 		cmdToRun := buildCmd
 		if cmdToRun == "" {
@@ -69,21 +99,18 @@ func resolveBaselineBundle(
 		if format != "json" && out != nil {
 			fmt.Fprintf(out, "Building %q in temporary worktree (%s)...\n", resolvedRef, cmdToRun)
 		}
-		if err := worktree.RunBuild(wtDir, cmdToRun); err != nil {
+		if err := worktree.RunBuild(buildWorkDir, cmdToRun); err != nil {
 			cleanup()
 			return nil, noopCleanup, fmt.Errorf("worktree build failed: %w", err)
 		}
 	}
 
-	// Locate the corresponding stats file in the worktree
-	targetStatsInWt := filepath.Join(wtDir, currentStatsPath)
 	if _, err := os.Stat(targetStatsInWt); err != nil {
-		if !filepath.IsAbs(currentStatsPath) {
-			relPath, relErr := filepath.Rel(repoRoot, filepath.Join(wd, currentStatsPath))
-			if relErr == nil {
-				targetStatsInWt = filepath.Join(wtDir, relPath)
-			}
+		cleanup()
+		if noBuild {
+			return nil, noopCleanup, fmt.Errorf("baseline stats %q not found in ref %q worktree: %w\nhint: the stats/dist output is likely gitignored; rerun without --no-build so the baseline is built inside the worktree", targetStatsInWt, resolvedRef, err)
 		}
+		return nil, noopCleanup, fmt.Errorf("baseline stats %q not found in ref %q worktree after build: %w\nhint: ensure the build command emits stats at this path, or pass --build-dir if the project lives in a subdirectory", targetStatsInWt, resolvedRef, err)
 	}
 
 	baseBundle, err := client.Scan(ctx, bundleradar.ScanOptions{
