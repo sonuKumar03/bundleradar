@@ -49,15 +49,13 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 		Bundler: "vite",
 	})
 
-	distDir := target.DistPath
-	if distDir == "" {
-		distDir = filepath.Dir(target.StatsPath)
-	}
+	distDir := resolveDistDir(target.StatsPath, target.DistPath)
 
 	for srcKey, vChunk := range manifest {
-		filePath := filepath.Join(distDir, vChunk.File)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		sizeBytes := fileSize(distDir, vChunk.File)
-		_ = filePath
 
 		loadType := core.LoadTypeAsync
 		if vChunk.IsEntry {
@@ -65,15 +63,20 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 		}
 
 		chunkID := filepath.Base(vChunk.File)
+		gzBytes, estimated := gzipFor(distDir, vChunk.File, sizeBytes)
 		chunk := core.Chunk{
-			ID:        chunkID,
-			Name:      chunkID,
-			Path:      vChunk.File,
-			SizeBytes: sizeBytes,
-			GzipBytes: estimateGzip(sizeBytes),
-			Type:      loadType,
-			Entry:     srcKey,
-			ModuleIDs: []string{srcKey},
+			ID:            chunkID,
+			Name:          chunkID,
+			Path:          vChunk.File,
+			SizeBytes:     sizeBytes,
+			GzipBytes:     gzBytes,
+			GzipEstimated: estimated,
+			Type:          loadType,
+			Entry:         srcKey,
+			ModuleIDs:     []string{srcKey},
+		}
+		if estimated {
+			bundle.GzipEstimated = true
 		}
 
 		pkgName := extractPackageName(srcKey)
@@ -81,7 +84,7 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 			ID:        srcKey,
 			Package:   pkgName,
 			SizeBytes: sizeBytes,
-			GzipBytes: estimateGzip(sizeBytes),
+			GzipBytes: estimateGzip(sizeBytes, vChunk.File),
 			IsAppCode: pkgName == "",
 			ChunkIDs:  []string{chunkID},
 		})
@@ -92,7 +95,7 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 			bundle.AddEntrypoint(srcKey, core.Entrypoint{
 				Name:             srcKey,
 				InitialBytes:     sizeBytes,
-				InitialGzipBytes: estimateGzip(sizeBytes),
+				InitialGzipBytes: gzBytes,
 				ChunkIDs:         []string{chunkID},
 			})
 		}
@@ -100,12 +103,17 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 		// Add emitted CSS as assets
 		for _, cssFile := range vChunk.Css {
 			cssSize := fileSize(distDir, cssFile)
+			cssGz, cssEstimated := gzipFor(distDir, cssFile, cssSize)
 			bundle.AddAsset(core.Asset{
-				Path:      cssFile,
-				SizeBytes: cssSize,
-				GzipBytes: estimateGzip(cssSize),
-				MimeType:  "text/css",
+				Path:          cssFile,
+				SizeBytes:     cssSize,
+				GzipBytes:     cssGz,
+				GzipEstimated: cssEstimated,
+				MimeType:      "text/css",
 			})
+			if cssEstimated {
+				bundle.GzipEstimated = true
+			}
 		}
 	}
 

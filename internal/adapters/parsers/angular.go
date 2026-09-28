@@ -3,7 +3,6 @@ package parsers
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,19 +50,16 @@ func (p *AngularParser) Detect(sample []byte, distDir string) bool {
 
 // Parse extracts bundle information from an Angular >= 17 application build metafile.
 func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bundle, error) {
-	data, err := os.ReadFile(target.StatsPath)
-	if err != nil {
-		return nil, fmt.Errorf("read angular stats %q: %w", target.StatsPath, err)
-	}
-
 	var meta EsbuildMetafile
-	if err := json.Unmarshal(data, &meta); err != nil {
+	if err := decodeStats(ctx, target.StatsPath, &meta); err != nil {
 		return nil, fmt.Errorf("parse angular stats JSON: %w", err)
 	}
 
 	if len(meta.Outputs) == 0 {
 		return nil, fmt.Errorf("angular stats %q contains no outputs (expected Angular >= 17 esbuild metafile)", target.StatsPath)
 	}
+
+	distDir := resolveDistDir(target.StatsPath, target.DistPath)
 
 	bundle := core.NewBundle(core.Metadata{
 		Bundler: "angular",
@@ -83,15 +79,20 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	isInitial := make(map[string]bool)
 
 	for _, outPath := range sortedOutputs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		out := meta.Outputs[outPath]
 		ext := strings.ToLower(filepath.Ext(outPath))
 		if ext == ".map" {
 			bundle.AddAsset(core.Asset{
-				Path:      outPath,
-				SizeBytes: out.Bytes,
-				GzipBytes: estimateGzip(out.Bytes),
-				MimeType:  "application/json",
+				Path:          outPath,
+				SizeBytes:     out.Bytes,
+				GzipBytes:     estimateGzip(out.Bytes, outPath),
+				GzipEstimated: true,
+				MimeType:      "application/json",
 			})
+			bundle.GzipEstimated = true
 			continue
 		}
 
@@ -122,6 +123,9 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	copy(queue, initialRoots)
 
 	for len(queue) > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		curr := queue[0]
 		queue = queue[1:]
 
@@ -191,6 +195,9 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	}
 
 	for len(bfsQueue) > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		curr := bfsQueue[0]
 		bfsQueue = bfsQueue[1:]
 		currPath := ingressPaths[curr]
@@ -229,41 +236,51 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 		// Non-JS assets (CSS, images, fonts, licenses)
 		if ext != ".js" && ext != ".mjs" {
+			gzBytes, estimated := gzipFor(distDir, outPath, out.Bytes)
 			if ext == ".css" && (isInitial[outPath] || isInitial[baseName]) {
 				// Global initial stylesheet
 				initialBytes += out.Bytes
-				initialGzipBytes += estimateGzip(out.Bytes)
+				initialGzipBytes += gzBytes
 				initialChunkIDs = append(initialChunkIDs, baseName)
 			}
 			bundle.AddAsset(core.Asset{
-				Path:      outPath,
-				SizeBytes: out.Bytes,
-				GzipBytes: estimateGzip(out.Bytes),
-				MimeType:  inferMimeType(ext),
+				Path:          outPath,
+				SizeBytes:     out.Bytes,
+				GzipBytes:     gzBytes,
+				GzipEstimated: estimated,
+				MimeType:      inferMimeType(ext),
 			})
+			if estimated {
+				bundle.GzipEstimated = true
+			}
 			continue
 		}
 
 		// JS Code Chunks
+		gzBytes, estimated := gzipFor(distDir, outPath, out.Bytes)
 		loadType := core.LoadTypeAsync
 		if isInitial[outPath] || isInitial[baseName] {
 			loadType = core.LoadTypeInitial
 			initialChunkIDs = append(initialChunkIDs, baseName)
 			initialBytes += out.Bytes
-			initialGzipBytes += estimateGzip(out.Bytes)
+			initialGzipBytes += gzBytes
 		} else {
 			asyncBytes += out.Bytes
 		}
+		if estimated {
+			bundle.GzipEstimated = true
+		}
 
 		chunk := core.Chunk{
-			ID:        baseName,
-			Name:      baseName,
-			Path:      outPath,
-			SizeBytes: out.Bytes,
-			GzipBytes: estimateGzip(out.Bytes),
-			Type:      loadType,
-			Entry:     out.EntryPoint,
-			ModuleIDs: make([]string, 0, len(out.Inputs)),
+			ID:            baseName,
+			Name:          baseName,
+			Path:          outPath,
+			SizeBytes:     out.Bytes,
+			GzipBytes:     gzBytes,
+			GzipEstimated: estimated,
+			Type:          loadType,
+			Entry:         out.EntryPoint,
+			ModuleIDs:     make([]string, 0, len(out.Inputs)),
 		}
 
 		// Process modules in chunk and deduplicate across chunks (sorted for determinism)
@@ -273,6 +290,9 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		}
 		slices.Sort(inPaths)
 		for _, inPath := range inPaths {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			inBytes := out.Inputs[inPath]
 			chunk.ModuleIDs = append(chunk.ModuleIDs, inPath)
 
@@ -289,7 +309,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 					ID:           inPath,
 					Package:      pkgName,
 					SizeBytes:    inBytes.BytesInOutput,
-					GzipBytes:    estimateGzip(inBytes.BytesInOutput),
+					GzipBytes:    estimateGzip(inBytes.BytesInOutput, inPath),
 					IsAppCode:    isApp,
 					ChunkIDs:     []string{baseName},
 					IngressPaths: p,
