@@ -169,7 +169,7 @@ bundleradar gate stats.json --against baseline.json --max-initial-delta 0B
 | Field | Meaning |
 | :--- | :--- |
 | `schemaVersion` | JSON contract version; currently `"1"`. |
-| `toolVersion` | Tool release version; currently `"2.0.0"`. |
+| `toolVersion` | Tool release version; currently `"2.1.0"`. |
 | `command` | The string `"scan"`. |
 | `summary.initialJs`, `summary.initialGzipJs` | Raw & Gzip bytes of browser JS in static bootstrap closure. |
 | `summary.lazyJs`, `summary.lazyGzipJs` | Raw & Gzip bytes of lazy JS outputs. |
@@ -197,7 +197,7 @@ bundleradar gate stats.json --against baseline.json --max-initial-delta 0B
 | Field | Meaning |
 | :--- | :--- |
 | `schemaVersion` | JSON contract version; currently `"1"`. |
-| `toolVersion` | Tool release version; currently `"2.0.0"`. |
+| `toolVersion` | Tool release version; currently `"2.1.0"`. |
 | `command` | The string `"diff"`. |
 | `summary.before`, `summary.after`, `summary.delta` | Each holds `initialJs`, `lazyJs`, and `totalJs`. |
 | `packages[].before`, `packages[].after`, `packages[].delta` | Each holds `initialBytes`, `lazyBytes`, and `totalBytes`. |

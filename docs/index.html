@@ -34,7 +34,7 @@
       "priceCurrency": "USD"
     },
     "description": "Analyze Angular esbuild bundles through a fast CLI, GitHub Actions, an MCP server, and an installable Agent Skill. Trace dependencies, measure optimizations, and enforce bundle budgets.",
-    "softwareVersion": "2.0.0",
+    "softwareVersion": "2.1.0",
     "url": "https://sonukumar03.github.io/bundleradar/",
     "codeRepository": "https://github.com/sonuKumar03/bundleradar",
     "license": "https://opensource.org/licenses/MIT",
@@ -141,7 +141,7 @@
             ⚡
           </div>
           <span class="font-bold text-base text-white tracking-tight group-hover:text-indigo-300 transition-colors">bundleradar</span>
-          <span data-version-badge class="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">v2.0.0</span>
+          <span data-version-badge class="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">v2.1.0</span>
         </a>
       </div>
 
@@ -670,7 +670,7 @@ jobs:
       - run: npx ng build --stats-json
       
       - name: Run bundleradar CI
-        uses: sonuKumar03/bundleradar@v2.0.0
+        uses: sonuKumar03/bundleradar@v2.1.0
         with:
           stats: dist/my-app/stats.json
           entry: src/main.ts
@@ -920,7 +920,7 @@ jobs:
 
       <div class="p-2.5 border-t border-slate-800/80 text-[10px] text-slate-400 flex justify-between font-mono">
         <span>Navigation: Jump to section</span>
-        <span data-version-badge>bundleradar v2.0.0</span>
+        <span data-version-badge>bundleradar v2.1.0</span>
       </div>
 
     </div>
@@ -936,7 +936,7 @@ jobs:
   <!-- SCRIPT -->
   <script>
     // Static verified version definition
-    const APP_VERSION = 'v2.0.0';
+    const APP_VERSION = 'v2.1.0';
 
     // Copy helper
     function copyText(text, btnId) {

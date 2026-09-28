@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1",
-  "toolVersion": "2.0.0",
+  "toolVersion": "2.1.0",
   "command": "compare",
   "summary": {
     "before": {
