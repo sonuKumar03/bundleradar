@@ -3,9 +3,7 @@ package parsers
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -54,15 +52,16 @@ func (p *EsbuildParser) Detect(sample []byte, distDir string) bool {
 }
 
 func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bundle, error) {
-	data, err := os.ReadFile(target.StatsPath)
-	if err != nil {
-		return nil, fmt.Errorf("read esbuild metafile %q: %w", target.StatsPath, err)
-	}
-
 	var meta EsbuildMetafile
-	if err := json.Unmarshal(data, &meta); err != nil {
+	if err := decodeStats(ctx, target.StatsPath, &meta); err != nil {
 		return nil, fmt.Errorf("parse esbuild metafile JSON: %w", err)
 	}
+
+	if len(meta.Outputs) == 0 {
+		return nil, fmt.Errorf("esbuild metafile %q contains no outputs", target.StatsPath)
+	}
+
+	distDir := resolveDistDir(target.StatsPath, target.DistPath)
 
 	bundle := core.NewBundle(core.Metadata{
 		Bundler: "esbuild",
@@ -77,15 +76,23 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 	// Process outputs as chunks
 	for _, outPath := range sortedOutputs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		out := meta.Outputs[outPath]
 		ext := strings.ToLower(filepath.Ext(outPath))
 		if ext != ".js" && ext != ".mjs" && ext != ".css" {
 			// Track as auxiliary asset
+			gzBytes, estimated := gzipFor(distDir, outPath, out.Bytes)
 			bundle.AddAsset(core.Asset{
-				Path:      outPath,
-				SizeBytes: out.Bytes,
-				GzipBytes: estimateGzip(out.Bytes),
+				Path:          outPath,
+				SizeBytes:     out.Bytes,
+				GzipBytes:     gzBytes,
+				GzipEstimated: estimated,
 			})
+			if estimated {
+				bundle.GzipEstimated = true
+			}
 			continue
 		}
 
@@ -95,24 +102,33 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		}
 
 		chunkID := filepath.Base(outPath)
+		gzBytes, estimated := gzipFor(distDir, outPath, out.Bytes)
 		chunk := core.Chunk{
-			ID:        chunkID,
-			Name:      chunkID,
-			Path:      outPath,
-			SizeBytes: out.Bytes,
-			GzipBytes: estimateGzip(out.Bytes),
-			Type:      loadType,
-			Entry:     out.EntryPoint,
-			ModuleIDs: make([]string, 0, len(out.Inputs)),
+			ID:            chunkID,
+			Name:          chunkID,
+			Path:          outPath,
+			SizeBytes:     out.Bytes,
+			GzipBytes:     gzBytes,
+			GzipEstimated: estimated,
+			Type:          loadType,
+			Entry:         out.EntryPoint,
+			ModuleIDs:     make([]string, 0, len(out.Inputs)),
+		}
+		if estimated {
+			bundle.GzipEstimated = true
 		}
 
-		// Process modules in chunk (sorted for determinism)
+		// Process modules in chunk (sorted for determinism). Module gzip is
+		// source-level attribution and always ratio-estimated.
 		inPaths := make([]string, 0, len(out.Inputs))
 		for inPath := range out.Inputs {
 			inPaths = append(inPaths, inPath)
 		}
 		slices.Sort(inPaths)
 		for _, inPath := range inPaths {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			inBytes := out.Inputs[inPath]
 			chunk.ModuleIDs = append(chunk.ModuleIDs, inPath)
 			pkgName := extractPackageName(inPath)
@@ -122,7 +138,7 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				ID:        inPath,
 				Package:   pkgName,
 				SizeBytes: inBytes.BytesInOutput,
-				GzipBytes: estimateGzip(inBytes.BytesInOutput),
+				GzipBytes: estimateGzip(inBytes.BytesInOutput, inPath),
 				IsAppCode: isApp,
 				ChunkIDs:  []string{chunkID},
 			})
@@ -135,7 +151,7 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			bundle.AddEntrypoint(out.EntryPoint, core.Entrypoint{
 				Name:             out.EntryPoint,
 				InitialBytes:     out.Bytes,
-				InitialGzipBytes: estimateGzip(out.Bytes),
+				InitialGzipBytes: gzBytes,
 				ChunkIDs:         []string{chunkID},
 			})
 		}
@@ -158,9 +174,4 @@ func extractPackageName(path string) string {
 		return parts[0] + "/" + parts[1]
 	}
 	return parts[0]
-}
-
-func estimateGzip(rawBytes int64) int64 {
-	// Standard gzip compression ratio approximation for JS/CSS bundles
-	return int64(float64(rawBytes) * 0.30)
 }

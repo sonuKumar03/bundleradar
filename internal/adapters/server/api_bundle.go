@@ -15,12 +15,13 @@ import (
 
 // BundleDTO represents the normalized bundle AST payload returned by the studio API.
 type BundleDTO struct {
-	Bundler     string                   `json:"bundler,omitempty"`
-	StatsPath   string                   `json:"statsPath"`
-	Entrypoints map[string]EntrypointDTO `json:"entrypoints"`
-	Chunks      []ChunkDTO               `json:"chunks"`
-	TopPackages []PackageDTO             `json:"topPackages"`
-	TotalBytes  int64                    `json:"totalBytes"`
+	Bundler       string                   `json:"bundler,omitempty"`
+	StatsPath     string                   `json:"statsPath"`
+	Entrypoints   map[string]EntrypointDTO `json:"entrypoints"`
+	Chunks        []ChunkDTO               `json:"chunks"`
+	TopPackages   []PackageDTO             `json:"topPackages"`
+	TotalBytes    int64                    `json:"totalBytes"`
+	GzipEstimated bool                     `json:"gzipEstimated,omitempty"`
 }
 
 // EntrypointDTO represents entrypoint sizes and constituent chunks.
@@ -33,10 +34,11 @@ type EntrypointDTO struct {
 
 // ChunkDTO represents an emitted chunk artifact.
 type ChunkDTO struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"` // "initial" or "async"
-	SizeBytes int64  `json:"sizeBytes"`
-	GzipBytes int64  `json:"gzipBytes"`
+	Name          string `json:"name"`
+	Type          string `json:"type"` // "initial" or "async"
+	SizeBytes     int64  `json:"sizeBytes"`
+	GzipBytes     int64  `json:"gzipBytes"`
+	GzipEstimated bool   `json:"gzipEstimated,omitempty"`
 }
 
 // PackageDTO aggregates module metrics and BFS ingress attribution for a single package.
@@ -113,10 +115,11 @@ func (s *Server) BundleToDTO(bundle *core.Bundle) *BundleDTO {
 	for _, ch := range bundle.Chunks {
 		totalBytes += ch.SizeBytes
 		chunks = append(chunks, ChunkDTO{
-			Name:      ch.Name,
-			Type:      string(ch.Type),
-			SizeBytes: ch.SizeBytes,
-			GzipBytes: ch.GzipBytes,
+			Name:          ch.Name,
+			Type:          string(ch.Type),
+			SizeBytes:     ch.SizeBytes,
+			GzipBytes:     ch.GzipBytes,
+			GzipEstimated: ch.GzipEstimated,
 		})
 	}
 	if totalBytes == 0 {
@@ -206,11 +209,12 @@ func (s *Server) BundleToDTO(bundle *core.Bundle) *BundleDTO {
 	})
 
 	return &BundleDTO{
-		Bundler:     bundle.Metadata.Bundler,
-		StatsPath:   s.statsPath,
-		Entrypoints: entrypoints,
-		Chunks:      chunks,
-		TopPackages: topPackages,
-		TotalBytes:  totalBytes,
+		Bundler:       bundle.Metadata.Bundler,
+		StatsPath:     s.statsPath,
+		Entrypoints:   entrypoints,
+		Chunks:        chunks,
+		TopPackages:   topPackages,
+		TotalBytes:    totalBytes,
+		GzipEstimated: bundle.GzipEstimated,
 	}
 }

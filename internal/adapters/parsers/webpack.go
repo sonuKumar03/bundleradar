@@ -3,9 +3,7 @@ package parsers
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -44,21 +42,21 @@ func (p *WebpackParser) Detect(sample []byte, distDir string) bool {
 }
 
 func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bundle, error) {
-	data, err := os.ReadFile(target.StatsPath)
-	if err != nil {
-		return nil, fmt.Errorf("read webpack stats %q: %w", target.StatsPath, err)
-	}
-
 	var stats WebpackStats
-	if err := json.Unmarshal(data, &stats); err != nil {
+	if err := decodeStats(ctx, target.StatsPath, &stats); err != nil {
 		return nil, fmt.Errorf("parse webpack stats JSON: %w", err)
 	}
+
+	distDir := resolveDistDir(target.StatsPath, target.DistPath)
 
 	bundle := core.NewBundle(core.Metadata{
 		Bundler: "webpack",
 	})
 
 	for _, wChunk := range stats.Chunks {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		chunkName := chunkDisplayName(wChunk)
 		fileName := chunkName
 		if len(wChunk.Files) > 0 {
@@ -70,18 +68,26 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			loadType = core.LoadTypeInitial
 		}
 
+		gzBytes, estimated := gzipFor(distDir, fileName, wChunk.Size)
 		chunk := core.Chunk{
-			ID:        chunkName,
-			Name:      fileName,
-			Path:      fileName,
-			SizeBytes: wChunk.Size,
-			GzipBytes: estimateGzip(wChunk.Size),
-			Type:      loadType,
-			Entry:     chunkName,
-			ModuleIDs: make([]string, 0, len(wChunk.Modules)),
+			ID:            chunkName,
+			Name:          fileName,
+			Path:          fileName,
+			SizeBytes:     wChunk.Size,
+			GzipBytes:     gzBytes,
+			GzipEstimated: estimated,
+			Type:          loadType,
+			Entry:         chunkName,
+			ModuleIDs:     make([]string, 0, len(wChunk.Modules)),
+		}
+		if estimated {
+			bundle.GzipEstimated = true
 		}
 
 		for _, m := range wChunk.Modules {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			// Real webpack 5 stats nest aggregate rollups (e.g. "runtime
 			// modules", "dependent modules") alongside real modules; those
 			// carry no name and must not become phantom attribution rows.
@@ -95,7 +101,7 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				ID:        m.Name,
 				Package:   pkgName,
 				SizeBytes: m.Size,
-				GzipBytes: estimateGzip(m.Size),
+				GzipBytes: estimateGzip(m.Size, m.Name),
 				IsAppCode: pkgName == "",
 				ChunkIDs:  []string{chunkName},
 			})
@@ -107,7 +113,7 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			bundle.AddEntrypoint(chunkName, core.Entrypoint{
 				Name:             chunkName,
 				InitialBytes:     wChunk.Size,
-				InitialGzipBytes: estimateGzip(wChunk.Size),
+				InitialGzipBytes: gzBytes,
 				ChunkIDs:         []string{chunkName},
 			})
 		}

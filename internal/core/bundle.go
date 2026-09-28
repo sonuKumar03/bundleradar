@@ -28,6 +28,9 @@ type Bundle struct {
 	Chunks      []Chunk               `json:"chunks"`
 	Modules     []Module              `json:"modules"`
 	Assets      []Asset               `json:"assets"`
+	// GzipEstimated is true when any chunk or asset gzip size was approximated
+	// from a ratio because the emitted artifact was not available on disk.
+	GzipEstimated bool `json:"gzipEstimated,omitempty"`
 
 	chunkIndex  map[string]int
 	moduleIndex map[string]int
@@ -49,9 +52,12 @@ type Chunk struct {
 	Path      string   `json:"path"`
 	SizeBytes int64    `json:"sizeBytes"`
 	GzipBytes int64    `json:"gzipBytes"`
-	Type      LoadType `json:"type"`
-	Entry     string   `json:"entry,omitempty"`
-	ModuleIDs []string `json:"moduleIds"`
+	// GzipEstimated is true when GzipBytes was ratio-approximated rather than
+	// measured by compressing the emitted file.
+	GzipEstimated bool     `json:"gzipEstimated,omitempty"`
+	Type          LoadType `json:"type"`
+	Entry         string   `json:"entry,omitempty"`
+	ModuleIDs     []string `json:"moduleIds"`
 }
 
 // Module represents a source file or node_modules package compiled into a chunk.
@@ -71,7 +77,10 @@ type Asset struct {
 	Path      string `json:"path"`
 	SizeBytes int64  `json:"sizeBytes"`
 	GzipBytes int64  `json:"gzipBytes"`
-	MimeType  string `json:"mimeType"`
+	// GzipEstimated is true when GzipBytes was ratio-approximated rather than
+	// measured by compressing the emitted file.
+	GzipEstimated bool   `json:"gzipEstimated,omitempty"`
+	MimeType      string `json:"mimeType"`
 }
 
 // PackageContribution summarizes a single npm package's impact across a bundle.
