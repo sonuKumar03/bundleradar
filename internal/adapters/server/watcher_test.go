@@ -18,6 +18,9 @@ func TestServer_WatcherAndLiveEvent(t *testing.T) {
 	statsFile := filepath.Join(tmpDir, "stats.json")
 
 	initialStats := `{
+		"inputs": {
+			"src/main.ts": { "bytes": 5000, "imports": [] }
+		},
 		"outputs": {
 			"dist/main.js": {
 				"entryPoint": "src/main.ts",
@@ -66,6 +69,9 @@ func TestServer_WatcherAndLiveEvent(t *testing.T) {
 	// Update stats file with a change
 	time.Sleep(100 * time.Millisecond) // ensure mtime diff
 	updatedStats := `{
+		"inputs": {
+			"src/main.ts": { "bytes": 8000, "imports": [] }
+		},
 		"outputs": {
 			"dist/main.js": {
 				"entryPoint": "src/main.ts",

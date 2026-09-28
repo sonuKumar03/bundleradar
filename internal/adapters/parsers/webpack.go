@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -37,8 +36,8 @@ func (p *WebpackParser) Name() string {
 }
 
 func (p *WebpackParser) Detect(sample []byte, distDir string) bool {
-	return bytes.Contains(sample, []byte(`"assetsByChunkName"`)) ||
-		(bytes.Contains(sample, []byte(`"chunks"`)) && bytes.Contains(sample, []byte(`"modules"`)))
+	return hasJSONKeys(sample, "assetsByChunkName") ||
+		(hasJSONKeys(sample, "chunks") && hasJSONKeys(sample, "modules"))
 }
 
 func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bundle, error) {
