@@ -31,6 +31,13 @@ jobs:
             exit 1
           fi
 
+      - name: Validate GoReleaser config
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: check
+
       - name: Go Vet
         run: go vet ./...
 
@@ -60,6 +67,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+      id-token: write # for cosign keyless signing via GitHub OIDC
 
     steps:
       - name: Checkout code
@@ -72,49 +80,23 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      - name: Build Multi-Arch Binaries
-        id: build
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          DIST_DIR="dist-release"
-          mkdir -p "$DIST_DIR"
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
 
-          TARGETS=(
-            "darwin/amd64/bundleradar_${VERSION}_darwin_amd64.tar.gz"
-            "darwin/arm64/bundleradar_${VERSION}_darwin_arm64.tar.gz"
-            "linux/amd64/bundleradar_${VERSION}_linux_amd64.tar.gz"
-            "linux/arm64/bundleradar_${VERSION}_linux_arm64.tar.gz"
-            "windows/amd64/bundleradar_${VERSION}_windows_amd64.zip"
-          )
+      - name: Install syft
+        uses: anchore/sbom-action@v0
+        with:
+          install-only: true
 
-          for TARGET in "${TARGETS[@]}"; do
-            IFS='/' read -r GOOS GOARCH ARCHIVE_NAME <<< "$TARGET"
-            echo "Building $GOOS/$GOARCH -> $ARCHIVE_NAME..."
-
-            TMP_BUILD="build-${GOOS}-${GOARCH}"
-            mkdir -p "$TMP_BUILD"
-
-            EXE_NAME="bundleradar"
-            if [ "$GOOS" = "windows" ]; then
-              EXE_NAME="bundleradar.exe"
-            fi
-
-            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w -X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o "${TMP_BUILD}/${EXE_NAME}" .
-            cp README.md LICENSE "${TMP_BUILD}/"
-
-            if [ "$GOOS" = "windows" ]; then
-              (cd "$TMP_BUILD" && zip -r "../${DIST_DIR}/${ARCHIVE_NAME}" .)
-            else
-              tar -czvf "${DIST_DIR}/${ARCHIVE_NAME}" -C "$TMP_BUILD" .
-            fi
-
-            rm -rf "$TMP_BUILD"
-          done
-
-          # Compute SHA256 checksums
-          cd "$DIST_DIR"
-          sha256sum * > checksums.txt
-          cd ..
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COSIGN_EXPERIMENTAL: "1"
 
       - name: Check if Highest SemVer
         id: check_latest
@@ -123,20 +105,12 @@ jobs:
           echo "Current tag: $GITHUB_REF_NAME, Highest tag: $LATEST_TAG"
           if [ "$GITHUB_REF_NAME" = "$LATEST_TAG" ]; then
             echo "is_latest=true" >> "$GITHUB_OUTPUT"
+            gh release edit "$GITHUB_REF_NAME" --latest
           else
             echo "is_latest=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist-release/*
-          generate_release_notes: true
-          name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          make_latest: ${{ steps.check_latest.outputs.is_latest }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Moving Major Action Tag
         if: steps.check_latest.outputs.is_latest == 'true'
@@ -149,4 +123,3 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -fa "$MAJOR" -m "Update $MAJOR to point to $TAG"
           git push origin "$MAJOR" --force
-
