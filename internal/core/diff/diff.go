@@ -57,8 +57,35 @@ type PackageDelta struct {
 	GzipDelta  int64    `json:"gzipDeltaBytes"`
 	BaseBytes  int64    `json:"baseBytes"`
 	CurrBytes  int64    `json:"currBytes"`
+	Status     string   `json:"status"` // "ELIMINATED", "REDUCED", "REGRESSED", "ADDED", "UNCHANGED"
 	ChunkNames []string `json:"chunkNames,omitempty"`
 	ImportPath string   `json:"importPath,omitempty"`
+}
+
+// Package movement statuses shared by all diff consumers (CLI, server UI, MCP).
+const (
+	StatusEliminated = "ELIMINATED"
+	StatusReduced    = "REDUCED"
+	StatusRegressed  = "REGRESSED"
+	StatusAdded      = "ADDED"
+	StatusUnchanged  = "UNCHANGED"
+)
+
+// Status classifies package movement between two byte measurements. It is the
+// single source of truth for diff status semantics across all consumers.
+func Status(baseBytes, targetBytes int64) string {
+	switch {
+	case baseBytes > 0 && targetBytes == 0:
+		return StatusEliminated
+	case baseBytes == 0 && targetBytes > 0:
+		return StatusAdded
+	case targetBytes < baseBytes:
+		return StatusReduced
+	case targetBytes > baseBytes:
+		return StatusRegressed
+	default:
+		return StatusUnchanged
+	}
 }
 
 // Attribution attributes a regression to a source module and reason.
@@ -207,6 +234,7 @@ func Calculate(base, current *core.Bundle, opts Options) *BundleDiff {
 			GzipDelta:  cGzip - bGzip,
 			BaseBytes:  bSize,
 			CurrBytes:  cSize,
+			Status:     Status(bSize, cSize),
 			ChunkNames: chunkNames,
 			ImportPath: importPathStr,
 		}

@@ -37,7 +37,7 @@ func newGateCommand() *cobra.Command {
 				statsPath = args[0]
 			}
 			if statsPath == "" {
-				return fmt.Errorf("stats path is required")
+				return &UsageError{Err: fmt.Errorf("stats path is required")}
 			}
 
 			client := bundleradar.New()
@@ -55,7 +55,7 @@ func newGateCommand() *cobra.Command {
 			if entry != "" {
 				ep, ok := bundle.ResolveEntrypoint(entry)
 				if !ok {
-					return fmt.Errorf("entrypoint %q not found in bundle", entry)
+					return &UsageError{Err: fmt.Errorf("entrypoint %q not found in bundle", entry)}
 				}
 				bundle.Entrypoints = map[string]core.Entrypoint{
 					ep.Name: *ep,
@@ -76,21 +76,21 @@ func newGateCommand() *cobra.Command {
 			if maxInitial != "" {
 				val, err := bundleradar.ParseBytes(maxInitial)
 				if err != nil {
-					return fmt.Errorf("invalid --max-initial: %w", err)
+					return &UsageError{Err: fmt.Errorf("invalid --max-initial: %w", err)}
 				}
 				pol.MaxInitial = &val
 			}
 			if maxTotal != "" {
 				val, err := bundleradar.ParseBytes(maxTotal)
 				if err != nil {
-					return fmt.Errorf("invalid --max-total: %w", err)
+					return &UsageError{Err: fmt.Errorf("invalid --max-total: %w", err)}
 				}
 				pol.MaxTotal = &val
 			}
 			if maxInitialDelta != "" {
 				val, err := bundleradar.ParseBytes(maxInitialDelta)
 				if err != nil {
-					return fmt.Errorf("invalid --max-initial-delta: %w", err)
+					return &UsageError{Err: fmt.Errorf("invalid --max-initial-delta: %w", err)}
 				}
 				pol.MaxInitialDelta = &val
 			}

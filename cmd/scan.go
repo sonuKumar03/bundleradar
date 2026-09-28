@@ -35,7 +35,7 @@ func newScanCommand() *cobra.Command {
 				statsPath = args[0]
 			}
 			if statsPath == "" {
-				return fmt.Errorf("stats path is required")
+				return &UsageError{Err: fmt.Errorf("stats path is required")}
 			}
 
 			if uiMode {
@@ -57,7 +57,7 @@ func newScanCommand() *cobra.Command {
 			if entry != "" {
 				ep, ok := bundle.ResolveEntrypoint(entry)
 				if !ok {
-					return fmt.Errorf("entrypoint %q not found in bundle", entry)
+					return &UsageError{Err: fmt.Errorf("entrypoint %q not found in bundle", entry)}
 				}
 				bundle.Entrypoints = map[string]core.Entrypoint{
 					ep.Name: *ep,

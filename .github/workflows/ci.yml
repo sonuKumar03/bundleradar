@@ -64,7 +64,10 @@ jobs:
         run: go test -v . -run TestDocumentationContract -count=1
 
       - name: Build Binary
-        run: go build -o bundleradar .
+        shell: bash
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          go build -ldflags="-X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o bundleradar .
 
       - name: Validate install.sh
         if: runner.os != 'Windows'
@@ -98,7 +101,10 @@ jobs:
         run: mkdir -p ./cache
 
       - name: Build bundleradar CLI
-        run: go build -o bundleradar .
+        shell: bash
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          go build -ldflags="-X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o bundleradar .
 
       - name: Format Human-Readable Benchmark Summary
         run: |

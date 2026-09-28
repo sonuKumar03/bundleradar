@@ -40,7 +40,7 @@ func (r *Registry) Resolve(target core.Target) (core.Parser, error) {
 				return p, nil
 			}
 		}
-		return nil, fmt.Errorf("unsupported bundler %q", target.Bundler)
+		return nil, core.UsageErrorf("unsupported bundler %q", target.Bundler)
 	}
 
 	if target.StatsPath == "" {
@@ -74,5 +74,5 @@ func (r *Registry) Resolve(target core.Target) (core.Parser, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("unable to detect bundler format for %q (pass --bundler to specify)", target.StatsPath)
+	return nil, core.UsageErrorf("unable to detect bundler format for %q (pass --bundler to specify)", target.StatsPath)
 }

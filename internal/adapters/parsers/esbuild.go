@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
@@ -67,8 +68,16 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		Bundler: "esbuild",
 	})
 
+	// Iterate outputs in sorted key order for deterministic chunk/module ordering
+	sortedOutputs := make([]string, 0, len(meta.Outputs))
+	for outPath := range meta.Outputs {
+		sortedOutputs = append(sortedOutputs, outPath)
+	}
+	slices.Sort(sortedOutputs)
+
 	// Process outputs as chunks
-	for outPath, out := range meta.Outputs {
+	for _, outPath := range sortedOutputs {
+		out := meta.Outputs[outPath]
 		ext := strings.ToLower(filepath.Ext(outPath))
 		if ext != ".js" && ext != ".mjs" && ext != ".css" {
 			// Track as auxiliary asset
@@ -97,8 +106,14 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			ModuleIDs: make([]string, 0, len(out.Inputs)),
 		}
 
-		// Process modules in chunk
-		for inPath, inBytes := range out.Inputs {
+		// Process modules in chunk (sorted for determinism)
+		inPaths := make([]string, 0, len(out.Inputs))
+		for inPath := range out.Inputs {
+			inPaths = append(inPaths, inPath)
+		}
+		slices.Sort(inPaths)
+		for _, inPath := range inPaths {
+			inBytes := out.Inputs[inPath]
 			chunk.ModuleIDs = append(chunk.ModuleIDs, inPath)
 			pkgName := extractPackageName(inPath)
 			isApp := (pkgName == "")
