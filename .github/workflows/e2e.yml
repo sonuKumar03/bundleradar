@@ -5,6 +5,8 @@ on:
     branches: [ master ]
     paths:
       - 'testdata/nx-workspace/**'
+      - 'testdata/vite-app/**'
+      - 'testdata/webpack-app/**'
       - 'testdata/minimal/**'
       - 'cmd/**'
       - 'internal/**'
@@ -17,6 +19,8 @@ on:
     branches: [ master ]
     paths:
       - 'testdata/nx-workspace/**'
+      - 'testdata/vite-app/**'
+      - 'testdata/webpack-app/**'
       - 'testdata/minimal/**'
       - 'cmd/**'
       - 'internal/**'
@@ -56,7 +60,10 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: 'testdata/nx-workspace/package-lock.json'
+          cache-dependency-path: |
+            testdata/nx-workspace/package-lock.json
+            testdata/vite-app/package-lock.json
+            testdata/webpack-app/package-lock.json
 
       - name: Install Nx workspace dependencies
         working-directory: testdata/nx-workspace
@@ -66,7 +73,19 @@ jobs:
         working-directory: testdata/nx-workspace
         run: npm run build
 
-      - name: Run Full Integration Tests with Real Nx Builds
+      - name: Install and build real Vite fixture
+        working-directory: testdata/vite-app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install and build real webpack fixture
+        working-directory: testdata/webpack-app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run Full Integration Tests with Real Builds (Nx, Vite, webpack)
         env:
           BUNDLECHECK_REQUIRE_E2E: "1"
         run: go test -v -count=1 ./...
@@ -89,6 +108,12 @@ jobs:
         run: |
           ./bundleradar diff testdata/minimal/stats.json --against master --no-build
           ./bundleradar gate testdata/minimal/stats.json --against master --no-build --max-initial-delta 10MB
+
+      - name: Verify bundleradar CLI on real Vite and webpack builds
+        run: |
+          ./bundleradar scan testdata/vite-app/dist/.vite/manifest.json -d testdata/vite-app/dist
+          ./bundleradar scan testdata/webpack-app/dist/stats.json
+          ./bundleradar gate testdata/webpack-app/dist/stats.json --max-initial 10MB
 
       - name: Publish Bundlecheck Report to GitHub Step Summary
         run: |

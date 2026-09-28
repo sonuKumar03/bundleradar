@@ -56,10 +56,8 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 
 	for srcKey, vChunk := range manifest {
 		filePath := filepath.Join(distDir, vChunk.File)
-		var sizeBytes int64
-		if fi, err := os.Stat(filePath); err == nil {
-			sizeBytes = fi.Size()
-		}
+		sizeBytes := fileSize(distDir, vChunk.File)
+		_ = filePath
 
 		loadType := core.LoadTypeAsync
 		if vChunk.IsEntry {
@@ -101,11 +99,7 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 
 		// Add emitted CSS as assets
 		for _, cssFile := range vChunk.Css {
-			cssPath := filepath.Join(distDir, cssFile)
-			var cssSize int64
-			if fi, err := os.Stat(cssPath); err == nil {
-				cssSize = fi.Size()
-			}
+			cssSize := fileSize(distDir, cssFile)
 			bundle.AddAsset(core.Asset{
 				Path:      cssFile,
 				SizeBytes: cssSize,
@@ -115,5 +109,47 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 		}
 	}
 
+	// Attribute lazy-chunk bytes to entrypoints by walking each entry's
+	// dynamicImports chain through the manifest. Without this, entrypoint
+	// asyncBytes stays 0 even for apps with real dynamic imports.
+	chunkSize := make(map[string]int64, len(manifest))
+	for _, vChunk := range manifest {
+		chunkSize[vChunk.File] = fileSize(distDir, vChunk.File)
+	}
+	for srcKey, vChunk := range manifest {
+		if !vChunk.IsEntry {
+			continue
+		}
+		var asyncBytes int64
+		visited := make(map[string]bool)
+		queue := append([]string{}, vChunk.DynamicImports...)
+		for len(queue) > 0 {
+			curr := queue[0]
+			queue = queue[1:]
+			if visited[curr] {
+				continue
+			}
+			visited[curr] = true
+			next, ok := manifest[curr]
+			if !ok {
+				continue
+			}
+			asyncBytes += chunkSize[next.File]
+			queue = append(queue, next.DynamicImports...)
+		}
+		if asyncBytes > 0 {
+			ep := bundle.Entrypoints[srcKey]
+			ep.AsyncBytes = asyncBytes
+			bundle.Entrypoints[srcKey] = ep
+		}
+	}
+
 	return bundle, nil
+}
+
+func fileSize(distDir, relPath string) int64 {
+	if fi, err := os.Stat(filepath.Join(distDir, relPath)); err == nil {
+		return fi.Size()
+	}
+	return 0
 }

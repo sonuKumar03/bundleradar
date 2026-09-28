@@ -1,0 +1,16 @@
+{
+  "name": "bundleradar-vite-fixture",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0"
+  },
+  "dependencies": {
+    "lodash-es": "^4.17.21",
+    "nanoid": "^5.1.5"
+  }
+}

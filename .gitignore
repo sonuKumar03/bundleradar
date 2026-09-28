@@ -19,3 +19,7 @@ node_modules/
 /.superpowers/
 /.bundleradar/
 /bin/
+/testdata/vite-app/node_modules/
+/testdata/vite-app/dist/
+/testdata/webpack-app/node_modules/
+/testdata/webpack-app/dist/
