@@ -17,6 +17,7 @@ func newDiffCommand() *cobra.Command {
 		driftThreshold string
 		bundler        string
 		buildCmd       string
+		buildDir       string
 		noBuild        bool
 	)
 
@@ -44,7 +45,7 @@ func newDiffCommand() *cobra.Command {
 				return fmt.Errorf("scan current bundle: %w", err)
 			}
 
-			baseBundle, cleanupBase, err := resolveBaselineBundle(ctx, client, against, currentPath, bundler, buildCmd, noBuild, c.OutOrStdout(), format)
+			baseBundle, cleanupBase, err := resolveBaselineBundle(ctx, client, against, currentPath, bundler, buildCmd, buildDir, noBuild, c.OutOrStdout(), format)
 			if err != nil {
 				return err
 			}
@@ -82,6 +83,7 @@ func newDiffCommand() *cobra.Command {
 	c.Flags().StringVar(&driftThreshold, "drift-threshold", "1KB", "Byte threshold to bucket micro-drift")
 	c.Flags().StringVar(&bundler, "bundler", "", "Override bundler auto-detection")
 	c.Flags().StringVar(&buildCmd, "build-cmd", "npm run build", "Build command to execute inside temporary worktree")
+	c.Flags().StringVar(&buildDir, "build-dir", "", "Project directory (relative to worktree root) containing package.json for monorepo baselines")
 	c.Flags().BoolVar(&noBuild, "no-build", false, "Skip building inside temporary worktree")
 
 	return c

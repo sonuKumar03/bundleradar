@@ -18,6 +18,7 @@ func newGateCommand() *cobra.Command {
 		output              string
 		against             string
 		buildCmd            string
+		buildDir            string
 		noBuild             bool
 		maxInitial          string
 		maxTotal            string
@@ -64,7 +65,7 @@ func newGateCommand() *cobra.Command {
 
 			var diffResult *bundleradar.BundleDiff
 			if against != "" {
-				baseBundle, cleanupBase, err := resolveBaselineBundle(ctx, client, against, statsPath, bundler, buildCmd, noBuild, c.OutOrStdout(), format)
+				baseBundle, cleanupBase, err := resolveBaselineBundle(ctx, client, against, statsPath, bundler, buildCmd, buildDir, noBuild, c.OutOrStdout(), format)
 				if err != nil {
 					return err
 				}
@@ -128,6 +129,7 @@ func newGateCommand() *cobra.Command {
 	c.Flags().StringVarP(&output, "output", "o", "", "Write output to file path")
 	c.Flags().StringVar(&against, "against", "", "Baseline stats/metafile or git ref to enforce delta limits")
 	c.Flags().StringVar(&buildCmd, "build-cmd", "npm run build", "Build command to execute inside temporary worktree")
+	c.Flags().StringVar(&buildDir, "build-dir", "", "Project directory (relative to worktree root) containing package.json for monorepo baselines")
 	c.Flags().BoolVar(&noBuild, "no-build", false, "Skip building inside temporary worktree")
 	c.Flags().StringVar(&maxInitial, "max-initial", "", "Maximum allowed initial bundle size (e.g. 250KB, 1MB)")
 	c.Flags().StringVar(&maxTotal, "max-total", "", "Maximum allowed total bundle size (e.g. 1.5MB)")
