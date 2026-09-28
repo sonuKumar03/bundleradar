@@ -28,10 +28,13 @@ func (r *TerminalReporter) Render(ctx context.Context, w io.Writer, data any) er
 		sb.WriteString("-------------------------------------------------------------\n")
 		for name, ep := range v.Entrypoints {
 			fmt.Fprintf(&sb, "Entrypoint %q:\n", name)
-			fmt.Fprintf(&sb, "  Initial JavaScript:   %s [~%s gzip]\n", formatBytes(ep.InitialBytes), formatBytes(ep.InitialGzipBytes))
+			fmt.Fprintf(&sb, "  Initial JavaScript:   %s [%s%s gzip]\n", formatBytes(ep.InitialBytes), gzipTilde(v.GzipEstimated), formatBytes(ep.InitialGzipBytes))
 			fmt.Fprintf(&sb, "  Async / Lazy Chunks:  %s (%d chunks)\n", formatBytes(ep.AsyncBytes), len(ep.ChunkIDs))
 		}
 		sb.WriteString("\n")
+		if v.GzipEstimated {
+			sb.WriteString("  gzip sizes are estimates (emitted files not found on disk)\n\n")
+		}
 
 		limit := 5
 		if r.Top > 0 {
@@ -125,4 +128,14 @@ func (r *TerminalReporter) Render(ctx context.Context, w io.Writer, data any) er
 
 	_, err := io.WriteString(w, sb.String())
 	return err
+}
+
+// gzipTilde returns "~" for estimated gzip sizes so the terminal output
+// distinguishes measured from approximated values. Measured gzip (emitted
+// files found on disk) is shown without the tilde.
+func gzipTilde(estimated bool) string {
+	if estimated {
+		return "~"
+	}
+	return ""
 }
