@@ -14,7 +14,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'action.yml'
-      - '.github/workflows/e2e.yml'
+      - '.github/workflows/**'
+      - '.goreleaser.yml'
   pull_request:
     branches: [ master ]
     paths:
@@ -28,7 +29,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'action.yml'
-      - '.github/workflows/e2e.yml'
+      - '.github/workflows/**'
+      - '.goreleaser.yml'
   workflow_dispatch:
 
 permissions:
