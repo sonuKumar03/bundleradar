@@ -64,6 +64,7 @@ jobs:
         run: go test -v . -run TestDocumentationContract -count=1
 
       - name: Build Binary
+        shell: bash
         run: |
           VERSION="$(cat VERSION | tr -d '[:space:]')"
           go build -ldflags="-X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o bundleradar .
@@ -100,6 +101,7 @@ jobs:
         run: mkdir -p ./cache
 
       - name: Build bundleradar CLI
+        shell: bash
         run: |
           VERSION="$(cat VERSION | tr -d '[:space:]')"
           go build -ldflags="-X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o bundleradar .

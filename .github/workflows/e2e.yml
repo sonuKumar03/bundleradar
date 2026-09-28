@@ -68,6 +68,7 @@ jobs:
         run: go test -v -count=1 ./...
 
       - name: Build bundleradar CLI
+        shell: bash
         run: |
           VERSION="$(cat VERSION | tr -d '[:space:]')"
           go build -ldflags="-X github.com/sonuKumar03/bundleradar/pkg/bundleradar.ToolVersion=${VERSION}" -o bundleradar .
@@ -107,6 +108,9 @@ jobs:
           output: action-report.md
           json-output: action-audit.json
           max-initial: 5MB
+          # Fixture repo has no package.json; skip the auto worktree base-ref
+          # build by comparing directly against the committed fixture stats.
+          build-cmd: 'true'
 
       - name: Assert Action Outputs & Report Files
         run: |
@@ -132,6 +136,7 @@ jobs:
           output: entry-report.md
           json-output: entry-audit.json
           max-initial: 5MB
+          build-cmd: 'true'
 
       - name: Assert Action Outputs & Report Files with Entry
         run: |
@@ -156,6 +161,7 @@ jobs:
           upload-artifact-baseline: 'true'
           artifact-name: 'fixture-test-baseline'
           max-initial: 5MB
+          build-cmd: 'true'
 
       - name: Assert Baseline Upload File Created
         run: |
@@ -187,6 +193,7 @@ jobs:
           dist: browser
           max-initial: 100B
           output: budget-failure-report.md
+          build-cmd: 'true'
 
       - name: Assert Budget Violation Step Failed
         run: |
