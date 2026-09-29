@@ -169,8 +169,13 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 	// 5. Duplicate package versions check
 	if p.DetectDuplicatePkgs {
 		pkgVersions := make(map[string]map[string]bool)
+		unknownVersionPkgs := make(map[string]bool)
 		for _, m := range bundle.Modules {
-			if m.Package == "" || m.Version == "" {
+			if m.Package == "" {
+				continue
+			}
+			if m.Version == "" {
+				unknownVersionPkgs[m.Package] = true
 				continue
 			}
 			if _, ok := pkgVersions[m.Package]; !ok {
@@ -192,6 +197,13 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 					Message:  fmt.Sprintf("Multiple bundled versions of %q detected: %s", pkg, strings.Join(vList, ", ")),
 				})
 			}
+		}
+		if len(unknownVersionPkgs) > 0 {
+			res.Warnings = append(res.Warnings, Violation{
+				Severity: "warning",
+				Rule:     "DUPLICATE_PACKAGE_VERSION_UNKNOWN",
+				Message:  fmt.Sprintf("Duplicate version detection is incomplete: version metadata is unavailable for %d package(s)", len(unknownVersionPkgs)),
+			})
 		}
 	}
 

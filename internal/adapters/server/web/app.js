@@ -984,8 +984,7 @@ function renderBundle(data) {
   const asyncChunksTotal = asyncChunks.reduce((acc, c) => acc + c.sizeBytes, 0) || asyncBytes;
   const totalGzip = chunks.reduce((acc, c) => acc + (c.gzipBytes || 0), 0);
 
-  // Identify duplicate packages
-  const duplicatePackages = packages.filter(p => p.chunks && p.chunks.length > 1);
+  const multiChunkPackages = packages.filter(p => p.chunks && p.chunks.length > 1);
 
   // Update top metrics in diagnosis view
   const initLargeEl = document.getElementById('metric-initial-large');
@@ -1012,8 +1011,8 @@ function renderBundle(data) {
   const totalGzipEl = document.getElementById('metric-total-gzip');
   if (totalGzipEl) totalGzipEl.innerText = totalGzip > 0 ? `~${formatBytes(totalGzip)} gzip` : '-- gzip';
 
-  const dupCountEl = document.getElementById('metric-dup-count');
-  if (dupCountEl) dupCountEl.innerText = `${duplicatePackages.length}`;
+  const multiChunkCountEl = document.getElementById('metric-multichunk-count');
+  if (multiChunkCountEl) multiChunkCountEl.innerText = `${multiChunkPackages.length}`;
 
   const initPctEl = document.getElementById('metric-initial-pct');
   if (initPctEl) {
