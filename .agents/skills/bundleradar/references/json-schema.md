@@ -1,33 +1,24 @@
-# JSON contracts
+# JSON Output Fields
 
-BundleRadar v2 formats output as structured JSON for automation and AI agents.
+BundleRadar CLI JSON output currently has no explicit schema version. The fields below match the current CLI output; tolerate additional fields.
 
 ## Scan JSON (`bundleradar scan -f json`)
 
-- `metadata`: `bundler`, `timestamp`, `commitSha`.
-- `entrypoints`: map of entrypoint name to `initialBytes`, `initialGzipBytes`, `asyncBytes`, `chunkIds`.
-- `chunks[]`: `id`, `name`, `path`, `sizeBytes`, `gzipBytes`, `type` (`initial` / `async`), `entry`, `moduleIds`.
-- `modules[]`: `id`, `package`, `version`, `sizeBytes`, `gzipBytes`, `isAppCode`, `chunkIds`.
-- `assets[]`: compiled auxiliary files (CSS, WASM, images).
+- Root fields: `metadata`, `entrypoints`, `chunks`, `modules`, `assets`; `gzipEstimated` is optional.
+- `metadata`: `bundler`.
+- `entrypoints.<name>`: `name`, `initialBytes`, `initialGzipBytes`, `asyncBytes`, `chunkIds`.
+- `chunks[]`: `id`, `name`, `path`, `sizeBytes`, `gzipBytes`, optional `gzipEstimated`, `type` (`initial` / `async`), optional `entry`, `moduleIds`.
+- `modules[]`: `id`, optional `package` and `version`, `sizeBytes`, `gzipBytes`, `isAppCode`, `chunkIds`; `chunkBytes` and `ingressPaths` may be present when available.
+- `assets[]`: `path`, `sizeBytes`, `gzipBytes`, optional `gzipEstimated`, `mimeType`.
 
 ## Diff JSON (`bundleradar diff -f json`)
 
-- `initialDelta`: signed delta in initial bytes (negative is reduction, positive is growth).
-- `asyncDelta`: signed delta in async/lazy bytes.
-- `totalDelta`: signed delta in total bundle bytes.
-- `entrypointDeltas`: per-entrypoint initial and async deltas.
-- `packageDeltas[]`: npm packages added, removed, or changed with byte differences.
+- `summary`: `baseInitialBytes`, `headInitialBytes`, `initialDeltaBytes`, `baseLazyBytes`, `headLazyBytes`, `lazyDeltaBytes`, `baseTotalBytes`, `headTotalBytes`, `totalDeltaBytes`.
+- `entrypoints.<name>`: `name`, `initialDeltaBytes`, `initialGzipDeltaBytes`, `asyncDeltaBytes`.
+- `packages[]` and optional `unchangedPackages[]`: `name`, `deltaBytes`, `gzipDeltaBytes`, `baseBytes`, `currBytes`, `status`, with optional `chunkNames` and `importPath`.
+- `addedChunks[]`, `removedChunks[]`, `microDriftBytes`, `attributions[]`.
 
 ## Gate JSON (`bundleradar gate -f json`)
 
-- `passed`: boolean indicating whether all policy limits passed.
-- `violations[]`: list of specific policy breaches (`rule`, `metric`, `actual`, `limit`, `message`).
-
-## Exit codes
-
-| Code | Meaning |
-| --- | --- |
-| 0 | analysis succeeded and policy passed |
-| 1 | budget, regression, or package policy violation |
-| 2 | invalid usage or configuration flags |
-| 3 | execution failure, missing files, or build error |
+- `passed`: boolean.
+- `violations[]` and `warnings[]`: evaluated policy results.

@@ -125,9 +125,9 @@ ng build --configuration production --stats-json
 # View initial JS vs lazy breakdown & top npm contributors
 bundleradar scan dist/my-app/stats.json
 
-# Scope analysis to a specific entrypoint by source file or chunk glob
+# Match a source entry or exact emitted chunk name (globs are not supported)
 bundleradar scan dist/my-app/stats.json --entry src/main.ts
-bundleradar scan dist/my-app/stats.json -e "main-*.js"
+bundleradar scan dist/my-app/stats.json -e "main.js"
 
 # Trace why a package was pulled into initial JS
 bundleradar scan dist/my-app/stats.json --why lodash-es
@@ -150,9 +150,9 @@ Inspect bundle sizes, breakdown, and package dependencies across entrypoints. Su
 # Basic scan
 bundleradar scan dist/my-app/stats.json
 
-# Scope scan to a specific entrypoint (source path or emitted chunk glob)
+# Scope to a source path or exact emitted chunk name (globs are not supported)
 bundleradar scan dist/my-app/stats.json --entry src/main.ts
-bundleradar scan dist/my-app/stats.json -e "main-*.js"
+bundleradar scan dist/my-app/stats.json -e "main.js"
 
 # Show top 15 packages and trace package dependency root
 bundleradar scan dist/my-app/stats.json --top 15 --why lodash-es
@@ -161,7 +161,7 @@ bundleradar scan dist/my-app/stats.json --top 15 --why lodash-es
 bundleradar scan dist/my-app/stats.json --format json -o scan.json
 ```
 
-> **Entrypoint Scoping & TotalJS Invariant:** Using `--entry` / `-e` with either a source path (e.g. `src/main.ts`) or an emitted chunk glob (e.g. `main-*.js`, `worker.js`) scopes initial versus lazy reachability, package attribution, and root traces strictly to the selected entrypoint. The overall `TotalJS` metric consistently reflects the whole browser build across all chunks.
+> **Entrypoint selection:** `--entry` / `-e` accepts a source path or exact emitted chunk name; glob patterns are not supported. It scopes analysis where the stats expose separate entrypoints. Angular currently exposes a single `main` entrypoint, so this does not isolate individual lazy routes. `TotalJS` always reflects the whole browser build.
 
 ---
 
@@ -304,7 +304,7 @@ jobs:
 | `stats` | *(auto)* | Path to `stats.json` (auto-detected if omitted). |
 | `dist` | *(auto)* | Path to emitted `browser` dist with `index.html` (auto-detected if omitted). |
 | `project` | `""` | Project name for multi-project or Nx workspaces. |
-| `entry` | `""` | Scope bundleradar analysis and budget enforcement to a specific entrypoint (e.g. `src/main.ts` or `main-*.js`). |
+| `entry` | `""` | Match a source path or exact emitted chunk name (e.g. `src/main.ts` or `main.js`); glob patterns are not supported. |
 | `artifact-baseline` | `false` | Attempt to restore baseline summary JSON from a GitHub Actions workflow artifact on base-ref. |
 | `artifact-name` | `""` | Name of the baseline workflow artifact (defaults to `bundleradar-baseline` or `bundleradar-baseline-<project>`). |
 | `upload-artifact-baseline` | `false` | Save current bundle summary and upload as an immutable baseline workflow artifact. |
@@ -322,9 +322,9 @@ Instead of rebuilding the base branch in an isolated Git worktree for every PR, 
 3. **Multi-App Monorepos:** In multi-app workspaces, specifying `project: my-app` automatically namespaces the artifact to `bundleradar-baseline-my-app`, enabling safe parallel matrix builds across applications.
 
 **Fallback & Error Handling:**
-- If comparing against an artifact baseline or base ref succeeds, full visual diffs and package deltas are posted to the PR.
-- If base ref build fails and **no delta regression budgets** were requested, the Action warns and falls back to current build measurements without failing CI.
-- If **delta regression limits** or explicit `base-ref` were requested and base analysis fails, the Action terminates with an error to ensure regression gates are never silently bypassed.
+- A successful baseline comparison produces the diff report and marks `comparison-status` as `completed`.
+- If an artifact is missing, the Action tries the configured or pull request base ref; without either, it scans the current build and reports comparison status as `unavailable`.
+- If a requested baseline comparison fails, the Action fails instead of silently falling back to a current-only scan, and it does not report the comparison as completed.
 
 ### ☁️ On-Demand Remote Audits
 Audit any public open-source Angular repository directly via GitHub Actions without local installation:

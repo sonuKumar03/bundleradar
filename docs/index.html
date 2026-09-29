@@ -478,16 +478,16 @@
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
               <div class="flex items-center space-x-2">
                 <span class="w-6 h-6 rounded-md bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-mono font-bold text-xs">1</span>
-                <h3 class="text-base font-mono font-bold text-indigo-300">bundleradar scan &lt;stats.json&gt; [--entry &lt;source-or-glob&gt;] [--why &lt;pkg&gt;]</h3>
+                <h3 class="text-base font-mono font-bold text-indigo-300">bundleradar scan &lt;stats.json&gt; [--entry &lt;source-or-exact-chunk&gt;] [--why &lt;pkg&gt;]</h3>
               </div>
               <span class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">Breakdown</span>
             </div>
             
             <p class="text-sm text-slate-300">
-              Inspects initial entry points, lazy route chunks, and calculates total NPM package contributions sorted by byte weight. Use <code>--entry</code> / <code>-e</code> (e.g. source path <code>src/main.ts</code> or emitted chunk glob <code>main-*.js</code>) to scope analysis to a specific entrypoint, or <code>--why &lt;pkg&gt;</code> to trace package import roots.
+              Inspects initial entry points, lazy chunks, and calculates total NPM package contributions sorted by byte weight. Use <code>--entry</code> / <code>-e</code> with a source path or exact chunk name (for example <code>src/main.ts</code> or <code>main.js</code>); glob patterns are not supported. Angular exposes a single <code>main</code> entrypoint, so this does not isolate individual lazy routes. Use <code>--why &lt;pkg&gt;</code> to trace package import roots.
             </p>
             <p class="text-xs text-indigo-300/90 font-mono bg-indigo-950/40 p-2.5 rounded-lg border border-indigo-900/50">
-              💡 <strong>Entrypoint Scoping &amp; TotalJS Invariant:</strong> <code>--entry</code> / <code>-e</code> scopes initial versus lazy reachability, package attribution, and root traces strictly to the selected entrypoint. The overall <code>TotalJS</code> metric consistently reflects the whole browser build across all chunks.
+              💡 <strong>Entrypoint selection:</strong> <code>--entry</code> / <code>-e</code> scopes analysis where stats expose separate entrypoints. <code>TotalJS</code> always reflects the whole browser build. Angular currently exposes one <code>main</code> entrypoint, not route-level entries.
             </p>
 
             <!-- Inline Terminal Output -->
@@ -553,7 +553,7 @@
             </div>
             
             <p class="text-sm text-slate-300">
-              Enforces strict size budgets and regression limits in pull request pipelines. Returns exit code 0 on pass, or exit code 1 with budget violation details to block oversized pull requests. Budgets can be scoped to specific entrypoints via <code>--entry</code> / <code>-e</code> (e.g. <code>src/main.ts</code> or <code>main-*.js</code>).
+              Enforces strict size budgets and regression limits in pull request pipelines. Returns exit code 0 on pass, or exit code 1 with budget violation details to block oversized pull requests. Budgets can be scoped with a source path or exact emitted chunk name (e.g. <code>src/main.ts</code> or <code>main.js</code>); glob patterns are not supported. Angular exposes a single <code>main</code> entrypoint, not route-level entries.
             </p>
 
             <!-- Inline Terminal Output -->
@@ -650,7 +650,7 @@ rules:
           <span>GitHub Actions Integration</span>
         </h2>
         <p class="text-sm text-slate-300">
-          Drop bundleradar directly into your GitHub Actions workflow to post automated PR comments with delta summaries and fail oversized changes. Use the <code>entry</code> input to scope analysis and budget enforcement to a specific entrypoint (e.g. <code>src/main.ts</code> or <code>main-*.js</code>):
+          Drop bundleradar directly into your GitHub Actions workflow to post automated PR comments with delta summaries and fail oversized changes. Use the <code>entry</code> input with a source path or exact emitted chunk name (e.g. <code>src/main.ts</code> or <code>main.js</code>); glob patterns are not supported:
         </p>
 
         <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs leading-relaxed overflow-x-auto text-slate-200">
