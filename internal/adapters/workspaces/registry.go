@@ -38,7 +38,7 @@ func (r *Registry) Resolve(ctx context.Context, root string) ([]core.Target, err
 		}
 	}
 	if _, err := os.Stat(filepath.Join(root, "angular.json")); err == nil {
-		return nil, fmt.Errorf("Angular CLI workspace detected, but automatic project discovery is unsupported; pass explicit targets with --app NAME=STATS[:DIST]")
+		return nil, fmt.Errorf("angular CLI workspace detected, but automatic project discovery is unsupported; pass explicit targets with --app NAME=STATS[:DIST]")
 	}
 	return nil, fmt.Errorf("no supported workspace layout detected in %q; pass explicit targets with --app NAME=STATS[:DIST]", root)
 }
