@@ -22,8 +22,10 @@ func newGateCommand() *cobra.Command {
 		buildDir            string
 		noBuild             bool
 		maxInitial          string
+		maxLazy             string
 		maxTotal            string
 		maxInitialDelta     string
+		maxTotalDelta       string
 		forbid              []string
 		detectDuplicatePkgs bool
 		entry               string
@@ -99,6 +101,13 @@ func newGateCommand() *cobra.Command {
 				}
 				pol.MaxTotal = &val
 			}
+			if maxLazy != "" {
+				val, err := bundleradar.ParseBytes(maxLazy)
+				if err != nil {
+					return &UsageError{Err: fmt.Errorf("invalid --max-lazy: %w", err)}
+				}
+				pol.MaxLazy = &val
+			}
 			if maxInitialDelta != "" {
 				val, err := bundleradar.ParseBytes(maxInitialDelta)
 				if err != nil {
@@ -106,12 +115,19 @@ func newGateCommand() *cobra.Command {
 				}
 				pol.MaxInitialDelta = &val
 			}
+			if maxTotalDelta != "" {
+				val, err := bundleradar.ParseBytes(maxTotalDelta)
+				if err != nil {
+					return &UsageError{Err: fmt.Errorf("invalid --max-total-delta: %w", err)}
+				}
+				pol.MaxTotalDelta = &val
+			}
 			if c.Flags().Changed("forbid") {
 				pol.ForbiddenPkgs = forbid
 			}
 			pol.DetectDuplicatePkgs = detectDuplicatePkgs
-			if pol.MaxInitialDelta != nil && against == "" {
-				return &UsageError{Err: fmt.Errorf("--max-initial-delta requires --against")}
+			if (pol.MaxInitialDelta != nil || pol.MaxTotalDelta != nil) && against == "" {
+				return &UsageError{Err: fmt.Errorf("delta budgets require --against")}
 			}
 
 			evalRes := client.Gate(bundle, diffResult, pol)
@@ -148,8 +164,10 @@ func newGateCommand() *cobra.Command {
 	c.Flags().StringVar(&buildDir, "build-dir", "", "Project directory (relative to worktree root) containing package.json for monorepo baselines")
 	c.Flags().BoolVar(&noBuild, "no-build", false, "Skip building inside temporary worktree")
 	c.Flags().StringVar(&maxInitial, "max-initial", "", "Maximum allowed initial bundle size (e.g. 250KB, 1MB)")
+	c.Flags().StringVar(&maxLazy, "max-lazy", "", "Maximum allowed lazy bundle size (e.g. 500KB)")
 	c.Flags().StringVar(&maxTotal, "max-total", "", "Maximum allowed total bundle size (e.g. 1.5MB)")
 	c.Flags().StringVar(&maxInitialDelta, "max-initial-delta", "", "Maximum allowed increase vs baseline")
+	c.Flags().StringVar(&maxTotalDelta, "max-total-delta", "", "Maximum allowed total JS increase vs baseline")
 	c.Flags().StringSliceVar(&forbid, "forbid", nil, "Forbidden package names (e.g. moment,lodash)")
 	c.Flags().BoolVar(&detectDuplicatePkgs, "detect-duplicate-pkgs", true, "Fail if multiple versions of the same package are bundled")
 	c.Flags().StringVarP(&entry, "entry", "e", "", "Scope budget checks to a specific entrypoint")

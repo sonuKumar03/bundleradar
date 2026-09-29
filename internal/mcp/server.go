@@ -71,8 +71,10 @@ func registerTools(s *server.MCPServer) {
 		mcpspec.WithString("path", mcpspec.Required(), mcpspec.Description("Path to stats/metafile JSON file.")),
 		mcpspec.WithString("against", mcpspec.Description("Optional baseline stats file to check regression deltas.")),
 		mcpspec.WithString("max_initial", mcpspec.Description("Maximum initial JS budget (e.g. '250KB', '1MB').")),
+		mcpspec.WithString("max_lazy", mcpspec.Description("Maximum lazy JS budget (e.g. '500KB').")),
 		mcpspec.WithString("max_total", mcpspec.Description("Maximum total JS budget (e.g. '1.5MB').")),
 		mcpspec.WithString("max_initial_delta", mcpspec.Description("Maximum allowed increase vs baseline (e.g. '10KB', '0B').")),
+		mcpspec.WithString("max_total_delta", mcpspec.Description("Maximum allowed total JS increase vs baseline.")),
 		mcpspec.WithArray("forbid", mcpspec.WithStringItems(), mcpspec.Description("List of package names forbidden from appearing in bundle.")),
 	), handleGate)
 
@@ -177,11 +179,13 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	path := req.GetString("path", "")
 	against := req.GetString("against", "")
 	maxInitial := req.GetString("max_initial", "")
+	maxLazy := req.GetString("max_lazy", "")
 	maxTotal := req.GetString("max_total", "")
 	maxInitialDelta := req.GetString("max_initial_delta", "")
+	maxTotalDelta := req.GetString("max_total_delta", "")
 	forbidList := req.GetStringSlice("forbid", nil)
-	if maxInitialDelta != "" && against == "" {
-		return mcpspec.NewToolResultError("max_initial_delta requires a readable baseline in against"), nil
+	if (maxInitialDelta != "" || maxTotalDelta != "") && against == "" {
+		return mcpspec.NewToolResultError("delta budgets require a readable baseline in against"), nil
 	}
 
 	client := bundleradar.New()
@@ -214,12 +218,26 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		}
 		pol.MaxTotal = &val
 	}
+	if maxLazy != "" {
+		val, err := bundleradar.ParseBytes(maxLazy)
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_lazy: %v", err)), nil
+		}
+		pol.MaxLazy = &val
+	}
 	if maxInitialDelta != "" {
 		val, err := bundleradar.ParseBytes(maxInitialDelta)
 		if err != nil {
 			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_initial_delta: %v", err)), nil
 		}
 		pol.MaxInitialDelta = &val
+	}
+	if maxTotalDelta != "" {
+		val, err := bundleradar.ParseBytes(maxTotalDelta)
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_total_delta: %v", err)), nil
+		}
+		pol.MaxTotalDelta = &val
 	}
 	pol.ForbiddenPkgs = forbidList
 	pol.DetectDuplicatePkgs = true

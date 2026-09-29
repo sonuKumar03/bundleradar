@@ -52,6 +52,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Prepare a smaller total-size baseline
+        run: |
+          sed 's/"bytes": 1024/"bytes": 1000/' testdata/minimal/stats.json > testdata/minimal/baseline-stats.json
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -144,6 +148,9 @@ jobs:
           output: action-report.md
           json-output: action-audit.json
           max-initial: 5MB
+          max-lazy: 5MB
+          max-total-delta: 0B
+          baseline: stats.json
           # Fixture repo has no package.json; skip the auto worktree base-ref
           # build by comparing directly against the committed fixture stats.
           build-cmd: 'true'
@@ -239,3 +246,38 @@ jobs:
           fi
           test -f testdata/minimal/budget-failure-report.md || (echo "Expected budget failure report to be generated" && exit 1)
 
+      - name: Test Action - Lazy Budget Violation Failure
+        id: test-lazy-budget
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: testdata/lazy-import
+          stats: stats.json
+          baseline: stats.json
+          max-lazy: 1B
+          output: lazy-budget-failure-report.md
+
+      - name: Assert Lazy Budget Violation Failed
+        run: |
+          if [ "${{ steps.test-lazy-budget.outcome }}" != "failure" ]; then
+            echo "Expected lazy budget breach to fail, but got: ${{ steps.test-lazy-budget.outcome }}"
+            exit 1
+          fi
+
+      - name: Test Action - Total Delta Budget Violation Failure
+        id: test-total-delta-budget
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: testdata/minimal
+          stats: stats.json
+          baseline: baseline-stats.json
+          max-total-delta: 0B
+          output: total-delta-budget-failure-report.md
+
+      - name: Assert Total Delta Budget Violation Failed
+        run: |
+          if [ "${{ steps.test-total-delta-budget.outcome }}" != "failure" ]; then
+            echo "Expected total delta budget breach to fail, but got: ${{ steps.test-total-delta-budget.outcome }}"
+            exit 1
+          fi
