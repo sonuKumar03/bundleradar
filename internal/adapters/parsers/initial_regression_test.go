@@ -57,3 +57,35 @@ func TestViteStaticImportsCountAsInitial(t *testing.T) {
 		t.Fatalf("static vendor type = %q, want initial", ch.Type)
 	}
 }
+
+func TestAngularInitialFilesFollowIndexHTML(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"node_modules/@angular/core/index.js":{}},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":100}}},"scripts.js":{"bytes":45,"entryPoint":"angular:script/global:scripts.js","inputs":{}},"optional.css":{"bytes":21,"entryPoint":"angular:styles/global:optional","inputs":{}}}}`)
+	browser := filepath.Join(filepath.Dir(stats), "browser")
+	if err := os.MkdirAll(browser, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"index.html":   `<script src="scripts.js"></script><script src="main.js"></script>`,
+		"main.js":      "main payload",
+		"scripts.js":   "global script",
+		"optional.css": "unused style",
+	} {
+		if err := os.WriteFile(filepath.Join(browser, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := bundle.Entrypoints["main"].InitialBytes; got != 145 {
+		t.Fatalf("initial bytes = %d, want injected JS only (145)", got)
+	}
+	if got := bundle.Entrypoints["main"].AsyncBytes; got != 0 {
+		t.Fatalf("async JS bytes = %d, want 0", got)
+	}
+	if bundle.GzipEstimated {
+		t.Fatal("gzip sizes should use emitted files under browser/")
+	}
+}
