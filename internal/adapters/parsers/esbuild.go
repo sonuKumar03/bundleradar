@@ -24,11 +24,11 @@ type EsbuildInput struct {
 }
 
 type EsbuildOutput struct {
-	Bytes        int64                           `json:"bytes"`
-	Inputs       map[string]EsbuildBytesInOutput `json:"inputs"`
-	Imports      []EsbuildImport                 `json:"imports"`
-	EntryPoint   string                          `json:"entryPoint"`
-	CssBundle    string                          `json:"cssBundle"`
+	Bytes      int64                           `json:"bytes"`
+	Inputs     map[string]EsbuildBytesInOutput `json:"inputs"`
+	Imports    []EsbuildImport                 `json:"imports"`
+	EntryPoint string                          `json:"entryPoint"`
+	CssBundle  string                          `json:"cssBundle"`
 }
 
 type EsbuildBytesInOutput struct {
@@ -156,6 +156,55 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				ChunkIDs:         []string{chunkID},
 			})
 		}
+	}
+
+	// A statically imported split chunk is required at startup even when it
+	// has no entryPoint of its own. Attribute it to each entry that imports it.
+	chunkByPath := make(map[string]int, len(bundle.Chunks))
+	for i, chunk := range bundle.Chunks {
+		chunkByPath[chunk.Path] = i
+	}
+	for _, entryPath := range sortedOutputs {
+		out := meta.Outputs[entryPath]
+		if out.EntryPoint == "" {
+			continue
+		}
+		ep := bundle.Entrypoints[out.EntryPoint]
+		seen := make(map[string]bool)
+		queue := []string{entryPath}
+		for len(queue) > 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			path := queue[0]
+			queue = queue[1:]
+			if seen[path] {
+				continue
+			}
+			seen[path] = true
+			if i, ok := chunkByPath[path]; ok {
+				chunk := &bundle.Chunks[i]
+				chunk.Type = core.LoadTypeInitial
+				if path != entryPath {
+					ep.InitialBytes += chunk.SizeBytes
+					ep.InitialGzipBytes += chunk.GzipBytes
+					ep.ChunkIDs = append(ep.ChunkIDs, chunk.ID)
+				}
+			}
+			for _, imp := range meta.Outputs[path].Imports {
+				if imp.Kind != "import-statement" {
+					continue
+				}
+				next := imp.Path
+				if _, ok := meta.Outputs[next]; !ok {
+					next = filepath.Clean(filepath.Join(filepath.Dir(path), next))
+				}
+				if _, ok := meta.Outputs[next]; ok && !seen[next] {
+					queue = append(queue, next)
+				}
+			}
+		}
+		bundle.Entrypoints[out.EntryPoint] = ep
 	}
 
 	return bundle, nil

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 	"github.com/sonuKumar03/bundleradar/internal/core/diff"
@@ -54,12 +55,9 @@ func newGateCommand() *cobra.Command {
 			}
 
 			if entry != "" {
-				ep, ok := bundle.ResolveEntrypoint(entry)
-				if !ok {
-					return &UsageError{Err: fmt.Errorf("entrypoint %q not found in bundle", entry)}
-				}
-				bundle.Entrypoints = map[string]core.Entrypoint{
-					ep.Name: *ep,
+				bundle, err = scopeBundle(bundle, entry)
+				if err != nil {
+					return err
 				}
 			}
 
@@ -70,10 +68,23 @@ func newGateCommand() *cobra.Command {
 					return err
 				}
 				defer cleanupBase()
+				if entry != "" {
+					baseBundle, err = scopeBundle(baseBundle, entry)
+					if err != nil {
+						return err
+					}
+				}
 				diffResult = client.Diff(baseBundle, bundle, diff.Options{})
 			}
 
-			var pol bundleradar.Policy
+			cfg, _, err := bundleradar.FindAndLoadConfig("")
+			if err != nil {
+				return &UsageError{Err: err}
+			}
+			pol, err := cfg.ToPolicy()
+			if err != nil {
+				return &UsageError{Err: err}
+			}
 			if maxInitial != "" {
 				val, err := bundleradar.ParseBytes(maxInitial)
 				if err != nil {
@@ -95,8 +106,13 @@ func newGateCommand() *cobra.Command {
 				}
 				pol.MaxInitialDelta = &val
 			}
-			pol.ForbiddenPkgs = forbid
+			if c.Flags().Changed("forbid") {
+				pol.ForbiddenPkgs = forbid
+			}
 			pol.DetectDuplicatePkgs = detectDuplicatePkgs
+			if pol.MaxInitialDelta != nil && against == "" {
+				return &UsageError{Err: fmt.Errorf("--max-initial-delta requires --against")}
+			}
 
 			evalRes := client.Gate(bundle, diffResult, pol)
 
@@ -139,4 +155,25 @@ func newGateCommand() *cobra.Command {
 	c.Flags().StringVarP(&entry, "entry", "e", "", "Scope budget checks to a specific entrypoint")
 
 	return c
+}
+
+func scopeBundle(bundle *core.Bundle, query string) (*core.Bundle, error) {
+	ep, ok := bundle.ResolveEntrypoint(query)
+	if !ok {
+		return nil, &UsageError{Err: fmt.Errorf("entrypoint %q not found in bundle", query)}
+	}
+	scoped := core.NewBundle(bundle.Metadata)
+	scoped.AddEntrypoint(ep.Name, *ep)
+	for _, chunk := range bundle.Chunks {
+		scoped.AddChunk(chunk)
+	}
+	for _, mod := range bundle.Modules {
+		for _, id := range mod.ChunkIDs {
+			if slices.Contains(ep.ChunkIDs, id) || len(bundle.Entrypoints) == 1 {
+				scoped.AddModule(mod)
+				break
+			}
+		}
+	}
+	return scoped, nil
 }

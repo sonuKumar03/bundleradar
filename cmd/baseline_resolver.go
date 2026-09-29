@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/sonuKumar03/bundleradar/internal/core"
 	"github.com/sonuKumar03/bundleradar/internal/worktree"
 	"github.com/sonuKumar03/bundleradar/pkg/bundleradar"
 )
@@ -29,6 +32,22 @@ func resolveBaselineBundle(
 
 	// 1. Check if against is an existing file on disk
 	if fi, err := os.Stat(against); err == nil && !fi.IsDir() {
+		f, err := os.Open(against)
+		if err != nil {
+			return nil, noopCleanup, err
+		}
+		defer f.Close()
+		header := make([]byte, 4096)
+		n, _ := f.Read(header)
+		if bytes.Contains(header[:n], []byte(`"metadata"`)) && bytes.Contains(header[:n], []byte(`"entrypoints"`)) {
+			if _, err := f.Seek(0, 0); err != nil {
+				return nil, noopCleanup, err
+			}
+			var base core.Bundle
+			if err := json.NewDecoder(f).Decode(&base); err == nil && base.Metadata.Bundler != "" && base.Entrypoints != nil {
+				return &base, noopCleanup, nil
+			}
+		}
 		baseBundle, err := client.Scan(ctx, bundleradar.ScanOptions{
 			StatsPath: against,
 			Bundler:   bundler,

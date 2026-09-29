@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 )
@@ -49,6 +50,30 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 	})
 
 	distDir := resolveDistDir(target.StatsPath, target.DistPath)
+	staticByEntry := make(map[string]map[string]bool)
+	initialKeys := make(map[string]bool)
+	for entry, chunk := range manifest {
+		if !chunk.IsEntry {
+			continue
+		}
+		seen := make(map[string]bool)
+		queue := []string{entry}
+		for len(queue) > 0 {
+			key := queue[0]
+			queue = queue[1:]
+			if seen[key] {
+				continue
+			}
+			next, ok := manifest[key]
+			if !ok {
+				continue
+			}
+			seen[key] = true
+			initialKeys[key] = true
+			queue = append(queue, next.Imports...)
+		}
+		staticByEntry[entry] = seen
+	}
 
 	for srcKey, vChunk := range manifest {
 		if err := ctx.Err(); err != nil {
@@ -57,7 +82,7 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 		sizeBytes := fileSize(distDir, vChunk.File)
 
 		loadType := core.LoadTypeAsync
-		if vChunk.IsEntry {
+		if initialKeys[srcKey] {
 			loadType = core.LoadTypeInitial
 		}
 
@@ -114,6 +139,21 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 				bundle.GzipEstimated = true
 			}
 		}
+	}
+	for entry, keys := range staticByEntry {
+		ep := bundle.Entrypoints[entry]
+		for key := range keys {
+			if key == entry {
+				continue
+			}
+			chunk := manifest[key]
+			ep.InitialBytes += fileSize(distDir, chunk.File)
+			gz, _ := gzipFor(distDir, chunk.File, fileSize(distDir, chunk.File))
+			ep.InitialGzipBytes += gz
+			ep.ChunkIDs = append(ep.ChunkIDs, filepath.Base(chunk.File))
+		}
+		slices.Sort(ep.ChunkIDs)
+		bundle.Entrypoints[entry] = ep
 	}
 
 	// Attribute lazy-chunk bytes to entrypoints by walking each entry's

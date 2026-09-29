@@ -109,6 +109,7 @@ func newWorkspaceCommand() *cobra.Command {
 				type TargetResult struct {
 					Name         string `json:"name"`
 					StatsPath    string `json:"statsPath"`
+					DistPath     string `json:"distPath,omitempty"`
 					InitialBytes int64  `json:"initialBytes"`
 					AsyncBytes   int64  `json:"asyncBytes"`
 					TotalBytes   int64  `json:"totalBytes"`
@@ -133,6 +134,7 @@ func newWorkspaceCommand() *cobra.Command {
 					tr := TargetResult{
 						Name:         s.target.Name,
 						StatsPath:    s.target.StatsPath,
+						DistPath:     s.target.DistPath,
 						InitialBytes: s.bundle.TotalInitialBytes(),
 						AsyncBytes:   s.bundle.TotalAsyncBytes(),
 						TotalBytes:   chunkBytes,

@@ -197,6 +197,20 @@ runs:
               WS_FLAGS+=("--app" "$app")
             done
           fi
+          if [ -n "$INPUT_PROJECTS" ]; then
+            DISCOVERED=$(bundleradar workspace scan -f json)
+            SELECTED_SPECS=$(node -e '
+              const data = JSON.parse(process.argv[1]);
+              for (const name of process.argv[2].split(/[,\s]+/).filter(Boolean)) {
+                const target = data.targets.find(t => t.name === name);
+                if (!target) { console.error(`Project ${name} was not found or could not be scanned`); process.exit(1); }
+                console.log(`${name}=${target.statsPath}${target.distPath ? `:${target.distPath}` : ""}`);
+              }
+            ' "$DISCOVERED" "$INPUT_PROJECTS")
+            while IFS= read -r spec; do
+              [ -n "$spec" ] && WS_FLAGS+=("--app" "$spec")
+            done <<< "$SELECTED_SPECS"
+          fi
 
           REPORT_FLAGS=("${WS_FLAGS[@]}" "-f" "$INPUT_FORMAT")
           if [ -n "$INPUT_OUTPUT" ]; then
@@ -221,6 +235,7 @@ runs:
             const data = process.argv[1];
             try {
               const parsed = JSON.parse(data);
+              if (parsed.targets.length !== Number(process.argv[2])) throw new Error("one or more selected applications could not be scanned");
               const initial = parsed.totalInitialBytes || 0;
               const lazy = parsed.totalAsyncBytes || 0;
               const total = parsed.totalBytes || (initial + lazy);
@@ -229,7 +244,7 @@ runs:
               console.error("Failed to parse bundleradar workspace JSON output:", e.message);
               process.exit(1);
             }
-          ' "$JSON_OUT")
+          ' "$JSON_OUT" "$((${#WS_FLAGS[@]} / 2))")
 
           read -r INITIAL LAZY TOTAL <<< "$PARSED_METRICS"
 
@@ -238,6 +253,22 @@ runs:
           echo "total_bytes=$TOTAL" >> $GITHUB_OUTPUT
           echo "comparison_status=completed" >> $GITHUB_OUTPUT
           echo "comparison_message=Evaluated multi-app workspace scan across tracked targets" >> $GITHUB_OUTPUT
+
+          TARGET_STATS=$(node -e 'console.log(JSON.parse(process.argv[1]).targets.map(t => `${t.statsPath}\t${t.distPath || ""}`).join("\n"))' "$JSON_OUT")
+          while IFS=$'\t' read -r stats dist; do
+            [ -z "$stats" ] && continue
+            GATE_FLAGS=("$stats")
+            if [ -n "$dist" ]; then GATE_FLAGS+=("--dist" "$dist"); fi
+            if [ -n "$INPUT_MAX_INITIAL" ]; then GATE_FLAGS+=("--max-initial" "$INPUT_MAX_INITIAL"); fi
+            if [ -n "$INPUT_MAX_TOTAL" ]; then GATE_FLAGS+=("--max-total" "$INPUT_MAX_TOTAL"); fi
+            if [ -n "$INPUT_MAX_INITIAL_DELTA" ]; then GATE_FLAGS+=("--max-initial-delta" "$INPUT_MAX_INITIAL_DELTA"); fi
+            if [ -n "$INPUT_BASELINE" ]; then GATE_FLAGS+=("--against" "$INPUT_BASELINE"); fi
+            if [ -n "$INPUT_BASE_REF" ]; then GATE_FLAGS+=("--against" "$INPUT_BASE_REF"); fi
+            if [ -n "$INPUT_BUILD_CMD" ]; then GATE_FLAGS+=("--build-cmd" "$INPUT_BUILD_CMD"); fi
+            if ! bundleradar gate "${GATE_FLAGS[@]}"; then
+              echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
+            fi
+          done <<< "$TARGET_STATS"
 
           exit 0
         fi
