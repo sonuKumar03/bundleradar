@@ -70,12 +70,24 @@ func estimateGzip(rawBytes int64, path string) int64 {
 // their outputs), then to a "browser" subdirectory (Angular application builder).
 func resolveDistDir(statsPath, distPath string) string {
 	if distPath != "" {
+		if isAngularBrowserDir(distPath) {
+			return filepath.Join(distPath, "browser")
+		}
 		return distPath
 	}
 	if statsPath != "" {
-		return filepath.Dir(statsPath)
+		dir := filepath.Dir(statsPath)
+		if isAngularBrowserDir(dir) {
+			return filepath.Join(dir, "browser")
+		}
+		return dir
 	}
 	return ""
+}
+
+func isAngularBrowserDir(dir string) bool {
+	fi, err := os.Stat(filepath.Join(dir, "browser", "index.html"))
+	return err == nil && !fi.IsDir()
 }
 
 // gzipFor attempts real gzip of path relative to distDir; on any failure it

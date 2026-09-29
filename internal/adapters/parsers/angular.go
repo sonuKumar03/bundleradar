@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -13,6 +14,8 @@ import (
 )
 
 type AngularParser struct{}
+
+var htmlAssetReference = regexp.MustCompile(`(?i)(?:src|href)\s*=\s*["']([^"']+)["']`)
 
 func (p *AngularParser) Name() string {
 	return "angular"
@@ -67,6 +70,17 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		Bundler: "angular",
 	})
 
+	initialFiles := make(map[string]bool)
+	indexHTML, err := os.ReadFile(filepath.Join(distDir, "index.html"))
+	if err == nil {
+		for _, match := range htmlAssetReference.FindAllSubmatch(indexHTML, -1) {
+			name := filepath.Base(strings.SplitN(string(match[1]), "?", 2)[0])
+			if name != "." && name != string(filepath.Separator) {
+				initialFiles[name] = true
+			}
+		}
+	}
+
 	// Iterate outputs in sorted key order so chunk/module ordering is
 	// deterministic for identical metafiles (map iteration is randomized).
 	sortedOutputs := make([]string, 0, len(meta.Outputs))
@@ -102,12 +116,12 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		lowerBase := strings.ToLower(baseName)
 		lowerEntry := strings.ToLower(out.EntryPoint)
 
-		isRoot := false
-		if (ext == ".js" || ext == ".mjs") && (strings.HasPrefix(lowerBase, "main") || strings.HasSuffix(lowerEntry, "main.ts")) {
+		isRoot := initialFiles[baseName] || initialFiles[outPath]
+		if len(initialFiles) == 0 && (ext == ".js" || ext == ".mjs") && (strings.HasPrefix(lowerBase, "main") || strings.HasSuffix(lowerEntry, "main.ts")) {
 			isRoot = true
-		} else if (ext == ".js" || ext == ".mjs") && (strings.HasPrefix(lowerBase, "polyfills") || strings.Contains(lowerEntry, "polyfills")) {
+		} else if len(initialFiles) == 0 && (ext == ".js" || ext == ".mjs") && (strings.HasPrefix(lowerBase, "polyfills") || strings.Contains(lowerEntry, "polyfills")) {
 			isRoot = true
-		} else if ext == ".css" && (strings.HasPrefix(lowerBase, "styles") || strings.Contains(lowerEntry, "styles")) {
+		} else if len(initialFiles) == 0 && ext == ".css" && (strings.HasPrefix(lowerBase, "styles") || strings.Contains(lowerEntry, "styles")) {
 			isRoot = true
 		}
 
