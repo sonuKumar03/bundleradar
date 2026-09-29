@@ -1,14 +1,17 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	mcpspec "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/sonuKumar03/bundleradar/internal/adapters/workspaces"
+	"github.com/sonuKumar03/bundleradar/internal/core"
 	"github.com/sonuKumar03/bundleradar/internal/core/diff"
 	"github.com/sonuKumar03/bundleradar/pkg/bundleradar"
 )
@@ -50,13 +53,13 @@ func registerTools(s *server.MCPServer) {
 	// 2. bundle_diff
 	s.AddTool(mcpspec.NewTool(
 		"bundle_diff",
-		mcpspec.WithDescription("Compare current build against a baseline file or git ref and calculate size deltas with regression attribution."),
+		mcpspec.WithDescription("Compare current build against a local baseline stats file or BundleRadar scan JSON file and calculate size deltas with regression attribution."),
 		mcpspec.WithReadOnlyHintAnnotation(true),
 		mcpspec.WithDestructiveHintAnnotation(false),
 		mcpspec.WithIdempotentHintAnnotation(true),
 		mcpspec.WithOpenWorldHintAnnotation(false),
 		mcpspec.WithString("path", mcpspec.Required(), mcpspec.Description("Path to current build stats/metafile JSON.")),
-		mcpspec.WithString("against", mcpspec.Required(), mcpspec.Description("Path to baseline stats/metafile JSON or git ref (e.g. main, HEAD~1).")),
+		mcpspec.WithString("against", mcpspec.Required(), mcpspec.Description("Path to a baseline stats/metafile/manifest file or BundleRadar scan JSON file. Git refs are not supported by MCP tools.")),
 		mcpspec.WithString("drift_threshold", mcpspec.Description("Byte threshold to bucket micro-drift (e.g. '1KB', '500B'). Defaults to '1KB'.")),
 	), handleDiff)
 
@@ -69,7 +72,7 @@ func registerTools(s *server.MCPServer) {
 		mcpspec.WithIdempotentHintAnnotation(true),
 		mcpspec.WithOpenWorldHintAnnotation(false),
 		mcpspec.WithString("path", mcpspec.Required(), mcpspec.Description("Path to stats/metafile JSON file.")),
-		mcpspec.WithString("against", mcpspec.Description("Optional baseline stats file to check regression deltas.")),
+		mcpspec.WithString("against", mcpspec.Description("Optional local baseline stats/metafile/manifest file or BundleRadar scan JSON file. Git refs are not supported by MCP tools.")),
 		mcpspec.WithString("max_initial", mcpspec.Description("Maximum initial JS budget (e.g. '250KB', '1MB').")),
 		mcpspec.WithString("max_lazy", mcpspec.Description("Maximum lazy JS budget (e.g. '500KB').")),
 		mcpspec.WithString("max_total", mcpspec.Description("Maximum total JS budget (e.g. '1.5MB').")),
@@ -81,7 +84,7 @@ func registerTools(s *server.MCPServer) {
 	// 4. workspace_summary
 	s.AddTool(mcpspec.NewTool(
 		"workspace_summary",
-		mcpspec.WithDescription("Discover and summarize all application targets across a monorepo workspace (Nx, pnpm, npm, yarn)."),
+		mcpspec.WithDescription("List discovered application targets and their stats/dist paths in a supported workspace. This does not scan bundle contents."),
 		mcpspec.WithReadOnlyHintAnnotation(true),
 		mcpspec.WithDestructiveHintAnnotation(false),
 		mcpspec.WithIdempotentHintAnnotation(true),
@@ -135,8 +138,8 @@ func handleScan(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	}
 
 	result := map[string]any{
-		"entrypoints": bundle.Entrypoints,
-		"topPackages": bundle.TopPackages(top),
+		"entrypoints":  bundle.Entrypoints,
+		"topPackages":  bundle.TopPackages(top),
 		"totalInitial": bundle.TotalInitialBytes(),
 		"totalAsync":   bundle.TotalAsyncBytes(),
 		"chunkCount":   len(bundle.Chunks),
@@ -153,6 +156,10 @@ func handleDiff(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	path := req.GetString("path", "")
 	against := req.GetString("against", "")
 	driftThreshold := req.GetString("drift_threshold", "1KB")
+	driftBytes, err := bundleradar.ParseBytes(driftThreshold)
+	if err != nil {
+		return mcpspec.NewToolResultError(fmt.Sprintf("Invalid drift_threshold: %v", err)), nil
+	}
 
 	client := bundleradar.New()
 	currentBundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path})
@@ -160,12 +167,11 @@ func handleDiff(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan current bundle: %v", err)), nil
 	}
 
-	baseBundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: against})
+	baseBundle, err := scanBaseline(ctx, client, against)
 	if err != nil {
 		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan baseline bundle: %v", err)), nil
 	}
 
-	driftBytes, _ := bundleradar.ParseBytes(driftThreshold)
 	diffResult := client.Diff(baseBundle, currentBundle, diff.Options{DriftThreshold: driftBytes})
 
 	data, err := json.MarshalIndent(diffResult, "", "  ")
@@ -196,7 +202,7 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 
 	var d *bundleradar.BundleDiff
 	if against != "" {
-		baseBundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: against})
+		baseBundle, err := scanBaseline(ctx, client, against)
 		if err != nil {
 			return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan baseline bundle: %v", err)), nil
 		}
@@ -260,6 +266,27 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		return mcpspec.NewToolResultError(fmt.Sprintf("JSON marshal error: %v", err)), nil
 	}
 	return mcpspec.NewToolResultText(string(data)), nil
+}
+
+func scanBaseline(ctx context.Context, client *bundleradar.Client, path string) (*core.Bundle, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open baseline file %q (MCP accepts local files, not git refs): %w", path, err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 4096)
+	n, _ := f.Read(header)
+	if bytes.Contains(header[:n], []byte(`"metadata"`)) && bytes.Contains(header[:n], []byte(`"entrypoints"`)) {
+		if _, err := f.Seek(0, 0); err != nil {
+			return nil, err
+		}
+		var baseline core.Bundle
+		if err := json.NewDecoder(f).Decode(&baseline); err == nil && baseline.Metadata.Bundler != "" && baseline.Entrypoints != nil {
+			return &baseline, nil
+		}
+	}
+	return client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path})
 }
 
 func handleWorkspaceSummary(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.CallToolResult, error) {

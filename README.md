@@ -250,9 +250,9 @@ bundleradar mcp
 
 **Exposed MCP Tools:**
 - `bundle_scan`: Analyze bundle sizes, entrypoints, and top contributing npm packages.
-- `bundle_diff`: Compare current build against a baseline file or git ref with regression attribution.
-- `bundle_gate`: Validate bundle sizes, regressions, and architecture rules against policy budgets.
-- `workspace_summary`: Discover and summarize application targets across a workspace.
+- `bundle_diff`: Compare against a local stats/metafile/manifest file or BundleRadar scan JSON file. MCP tools do not resolve git refs.
+- `bundle_gate`: Validate bundle sizes, regressions, and architecture rules against policy budgets; `against` accepts a local baseline file, not a git ref.
+- `workspace_summary`: List discovered application targets and their stats/dist paths. It does not scan bundle contents.
 
 **Exposed MCP Resource:**
 - `bundleradar://rules`: Bundle optimization rules and guidelines.
