@@ -2,6 +2,7 @@ package cmd_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,16 @@ func twoEntryStats(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "stats.json")
 	data := `{"inputs":{},"outputs":{"a.js":{"bytes":100,"entryPoint":"src/a.ts","imports":[],"inputs":{"src/a.ts":{"bytesInOutput":100}}},"b.js":{"bytes":1000,"entryPoint":"src/b.ts","imports":[],"inputs":{"node_modules/lodash/index.js":{"bytesInOutput":900}}}}}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func gateStatsWithLazyBytes(t *testing.T, lazyBytes int) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "stats.json")
+	data := fmt.Sprintf(`{"inputs":{},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","imports":[{"path":"lazy.js","kind":"dynamic-import"}],"inputs":{"src/main.ts":{"bytesInOutput":100}}},"lazy.js":{"bytes":%d,"imports":[],"inputs":{"node_modules/lodash/index.js":{"bytesInOutput":%d}}}}}`, lazyBytes, lazyBytes)
 	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +74,23 @@ func TestGateEntryScopesPackagesButKeepsTotal(t *testing.T) {
 
 func TestGateDeltaNeedsBaseline(t *testing.T) {
 	var out, errs bytes.Buffer
-	code := cmd.Execute([]string{"gate", twoEntryStats(t), "--bundler", "esbuild", "--max-initial-delta", "0B"}, &out, &errs)
+	code := cmd.Execute([]string{"gate", twoEntryStats(t), "--bundler", "esbuild", "--max-total-delta", "0B"}, &out, &errs)
 	if code != cmd.ExitCodeUsage || !strings.Contains(errs.String(), "--against") {
 		t.Fatalf("missing baseline: code=%d output=%s error=%s", code, out.String(), errs.String())
+	}
+}
+
+func TestGateLazyAndTotalDeltaBudgets(t *testing.T) {
+	current, baseline := gateStatsWithLazyBytes(t, 200), gateStatsWithLazyBytes(t, 100)
+	var out, errs bytes.Buffer
+	code := cmd.Execute([]string{"gate", current, "--bundler", "esbuild", "--max-lazy", "199B", "-f", "json"}, &out, &errs)
+	if code != cmd.ExitCodePolicyViolation || !strings.Contains(out.String(), "MAX_LAZY_SIZE") {
+		t.Fatalf("lazy limit: code=%d output=%s error=%s", code, out.String(), errs.String())
+	}
+	out.Reset()
+	errs.Reset()
+	code = cmd.Execute([]string{"gate", current, "--bundler", "esbuild", "--against", baseline, "--max-total-delta", "99B", "-f", "json"}, &out, &errs)
+	if code != cmd.ExitCodePolicyViolation || !strings.Contains(out.String(), "MAX_TOTAL_DELTA") {
+		t.Fatalf("total delta limit: code=%d output=%s error=%s", code, out.String(), errs.String())
 	}
 }

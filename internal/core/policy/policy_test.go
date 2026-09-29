@@ -103,3 +103,23 @@ func TestPolicy_InitialDeltaRequiresDiff(t *testing.T) {
 		t.Fatalf("missing baseline result = %+v, want failed BASELINE_REQUIRED", res)
 	}
 }
+
+func TestPolicy_LazyAndTotalDeltaBudgets(t *testing.T) {
+	bundle := core.NewBundle(core.Metadata{})
+	bundle.AddChunk(core.Chunk{ID: "lazy.js", SizeBytes: 200, Type: core.LoadTypeAsync})
+	lazyLimit, totalDeltaLimit := int64(199), int64(9)
+	res := policy.Evaluate(bundle, &diff.BundleDiff{Summary: diff.DiffSummary{TotalDeltaBytes: 10}}, policy.Policy{
+		MaxLazy:       &lazyLimit,
+		MaxTotalDelta: &totalDeltaLimit,
+	})
+	if res.Passed || len(res.Violations) != 2 {
+		t.Fatalf("budget evaluation = %+v, want lazy and total-delta violations", res)
+	}
+	got := map[string]bool{}
+	for _, v := range res.Violations {
+		got[v.Rule] = true
+	}
+	if !got["MAX_LAZY_SIZE"] || !got["MAX_TOTAL_DELTA"] {
+		t.Fatalf("budget violations = %+v, want MAX_LAZY_SIZE and MAX_TOTAL_DELTA", res.Violations)
+	}
+}

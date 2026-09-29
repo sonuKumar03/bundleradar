@@ -260,8 +260,10 @@ runs:
             GATE_FLAGS=("$stats")
             if [ -n "$dist" ]; then GATE_FLAGS+=("--dist" "$dist"); fi
             if [ -n "$INPUT_MAX_INITIAL" ]; then GATE_FLAGS+=("--max-initial" "$INPUT_MAX_INITIAL"); fi
+            if [ -n "$INPUT_MAX_LAZY" ]; then GATE_FLAGS+=("--max-lazy" "$INPUT_MAX_LAZY"); fi
             if [ -n "$INPUT_MAX_TOTAL" ]; then GATE_FLAGS+=("--max-total" "$INPUT_MAX_TOTAL"); fi
             if [ -n "$INPUT_MAX_INITIAL_DELTA" ]; then GATE_FLAGS+=("--max-initial-delta" "$INPUT_MAX_INITIAL_DELTA"); fi
+            if [ -n "$INPUT_MAX_TOTAL_DELTA" ]; then GATE_FLAGS+=("--max-total-delta" "$INPUT_MAX_TOTAL_DELTA"); fi
             if [ -n "$INPUT_BASELINE" ]; then GATE_FLAGS+=("--against" "$INPUT_BASELINE"); fi
             if [ -n "$INPUT_BASE_REF" ]; then GATE_FLAGS+=("--against" "$INPUT_BASE_REF"); fi
             if [ -n "$INPUT_BUILD_CMD" ]; then GATE_FLAGS+=("--build-cmd" "$INPUT_BUILD_CMD"); fi
@@ -285,11 +287,6 @@ runs:
         TARGET_BASE_REF="$INPUT_BASE_REF"
         if [ -z "$TARGET_BASE_REF" ] && [ -z "$BASELINE_TARGET" ] && [ "$EVENT_NAME" = "pull_request" ]; then
           TARGET_BASE_REF="$EVENT_BASE_REF"
-        fi
-
-        HAS_DELTA_BUDGET=false
-        if [ -n "$INPUT_MAX_INITIAL_DELTA" ] || [ -n "$INPUT_MAX_TOTAL_DELTA" ]; then
-          HAS_DELTA_BUDGET=true
         fi
 
         # Determine effective artifact name (defaulting with app/project namespacing if project is set)
@@ -446,9 +443,11 @@ runs:
         if [ -n "$INPUT_ENTRY" ]; then GATE_FLAGS+=("--entry" "$INPUT_ENTRY"); fi
         HAS_BUDGET=false
         if [ -n "$INPUT_MAX_INITIAL" ]; then GATE_FLAGS+=("--max-initial" "$INPUT_MAX_INITIAL"); HAS_BUDGET=true; fi
+        if [ -n "$INPUT_MAX_LAZY" ]; then GATE_FLAGS+=("--max-lazy" "$INPUT_MAX_LAZY"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_MAX_TOTAL" ]; then GATE_FLAGS+=("--max-total" "$INPUT_MAX_TOTAL"); HAS_BUDGET=true; fi
         if [ -n "$BASELINE_TARGET" ]; then GATE_FLAGS+=("--against" "$BASELINE_TARGET"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_MAX_INITIAL_DELTA" ]; then GATE_FLAGS+=("--max-initial-delta" "$INPUT_MAX_INITIAL_DELTA"); HAS_BUDGET=true; fi
+        if [ -n "$INPUT_MAX_TOTAL_DELTA" ]; then GATE_FLAGS+=("--max-total-delta" "$INPUT_MAX_TOTAL_DELTA"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_BUILD_CMD" ]; then GATE_FLAGS+=("--build-cmd" "$INPUT_BUILD_CMD"); fi
 
         if [ "$HAS_BUDGET" = "true" ]; then

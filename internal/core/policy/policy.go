@@ -11,8 +11,10 @@ import (
 // Policy defines threshold limits and architectural rules.
 type Policy struct {
 	MaxInitial          *int64   `json:"maxInitial,omitempty"`
+	MaxLazy             *int64   `json:"maxLazy,omitempty"`
 	MaxTotal            *int64   `json:"maxTotal,omitempty"`
 	MaxInitialDelta     *int64   `json:"maxInitialDelta,omitempty"`
+	MaxTotalDelta       *int64   `json:"maxTotalDelta,omitempty"`
 	ForbiddenPkgs       []string `json:"forbiddenPkgs,omitempty"`
 	DetectDuplicatePkgs bool     `json:"detectDuplicatePkgs"`
 }
@@ -80,16 +82,36 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 			})
 		}
 	}
+	if p.MaxLazy != nil {
+		limit := *p.MaxLazy
+		var actual int64
+		for _, chunk := range bundle.Chunks {
+			if chunk.Type == core.LoadTypeAsync {
+				actual += chunk.SizeBytes
+			}
+		}
+		if actual > limit {
+			res.Passed = false
+			res.Violations = append(res.Violations, Violation{
+				Severity: "error",
+				Rule:     "MAX_LAZY_SIZE",
+				Message:  fmt.Sprintf("Total lazy JS size %d bytes exceeds budget limit %d bytes", actual, limit),
+				Actual:   actual,
+				Limit:    limit,
+			})
+		}
+	}
 
 	// 3. MaxInitialDelta regression check
-	if p.MaxInitialDelta != nil && d == nil {
+	if (p.MaxInitialDelta != nil || p.MaxTotalDelta != nil) && d == nil {
 		res.Passed = false
 		res.Violations = append(res.Violations, Violation{
 			Severity: "error",
 			Rule:     "BASELINE_REQUIRED",
-			Message:  "Initial delta budget requires a baseline diff",
+			Message:  "Delta budgets require a baseline diff",
 		})
-	} else if p.MaxInitialDelta != nil {
+	}
+	if p.MaxInitialDelta != nil && d != nil {
 		limit := *p.MaxInitialDelta
 		for name, epDelta := range d.Entrypoints {
 			if epDelta.InitialDelta > limit {
@@ -102,6 +124,20 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 					Limit:    limit,
 				})
 			}
+		}
+	}
+	if p.MaxTotalDelta != nil && d != nil {
+		limit := *p.MaxTotalDelta
+		actual := d.Summary.TotalDeltaBytes
+		if actual > limit {
+			res.Passed = false
+			res.Violations = append(res.Violations, Violation{
+				Severity: "error",
+				Rule:     "MAX_TOTAL_DELTA",
+				Message:  fmt.Sprintf("Total JS regression +%d bytes exceeds delta limit %d bytes", actual, limit),
+				Actual:   actual,
+				Limit:    limit,
+			})
 		}
 	}
 
