@@ -245,6 +245,26 @@ jobs:
             exit 1
           fi
 
+      - name: Test Action - Failed baseline comparison status
+        id: test-failed-comparison
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: testdata/minimal
+          stats: stats.json
+          base-ref: bundleradar-a17-missing-ref
+          build-cmd: 'true'
+          output: failed-comparison-report.md
+
+      - name: Assert failed comparison is not reported as completed
+        run: |
+          test "${{ steps.test-failed-comparison.outcome }}" = "failure"
+          test "${{ steps.test-failed-comparison.outputs.comparison-status }}" = "unavailable"
+          case "${{ steps.test-failed-comparison.outputs.comparison-message }}" in
+            *"comparison failed"*) ;;
+            *) echo "Unexpected comparison status message: ${{ steps.test-failed-comparison.outputs.comparison-message }}"; exit 1 ;;
+          esac
+
       - name: Test Action - Budget Violation Failure Case
         id: test-budget-failure
         continue-on-error: true

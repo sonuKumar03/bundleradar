@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -135,15 +136,6 @@ func TestDocumentationContract_VersionSync(t *testing.T) {
 		t.Errorf("go.mod does not declare module github.com/sonuKumar03/bundleradar")
 	}
 
-	agentDocs, err := os.ReadFile(filepath.Join("docs", "agents.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	agentVersion := regexp.MustCompile("toolVersion.*currently `\\\"([^\\\"]+)\\\"`").FindSubmatch(agentDocs)
-	if len(agentVersion) != 2 || string(agentVersion[1]) != version {
-		t.Errorf("docs/agents.md toolVersion = %q, want %q", agentVersion, version)
-	}
-
 	website, err := os.ReadFile(filepath.Join("docs", "index.html"))
 	if err != nil {
 		t.Fatal(err)
@@ -155,6 +147,65 @@ func TestDocumentationContract_VersionSync(t *testing.T) {
 		match := regexp.MustCompile(pattern).FindSubmatch(website)
 		if len(match) != 2 || string(match[1]) != version {
 			t.Errorf("docs/index.html %s = %q, want %q", label, match, version)
+		}
+	}
+}
+
+func TestDocumentationContract_JSONExamplesMatchCLI(t *testing.T) {
+	stats := filepath.Join("testdata", "minimal", "stats.json")
+	var scanOut, errs bytes.Buffer
+	if code := cmd.Execute([]string{"scan", stats, "-f", "json"}, &scanOut, &errs); code != cmd.ExitCodeSuccess {
+		t.Fatalf("scan JSON: code=%d error=%s", code, errs.String())
+	}
+	var scan map[string]json.RawMessage
+	if err := json.Unmarshal(scanOut.Bytes(), &scan); err != nil {
+		t.Fatalf("decode scan JSON: %v", err)
+	}
+	for _, key := range []string{"metadata", "entrypoints", "chunks", "modules", "assets"} {
+		if _, ok := scan[key]; !ok {
+			t.Errorf("scan JSON missing %q", key)
+		}
+	}
+	if _, ok := scan["schemaVersion"]; ok {
+		t.Error("scan JSON unexpectedly contains schemaVersion")
+	}
+
+	var diffOut bytes.Buffer
+	errs.Reset()
+	if code := cmd.Execute([]string{"diff", stats, "--against", stats, "-f", "json"}, &diffOut, &errs); code != cmd.ExitCodeSuccess {
+		t.Fatalf("diff JSON: code=%d error=%s", code, errs.String())
+	}
+	var diffReport struct {
+		Summary struct {
+			InitialDeltaBytes int64 `json:"initialDeltaBytes"`
+			LazyDeltaBytes    int64 `json:"lazyDeltaBytes"`
+			TotalDeltaBytes   int64 `json:"totalDeltaBytes"`
+		} `json:"summary"`
+		Entrypoints map[string]json.RawMessage `json:"entrypoints"`
+		Packages    []json.RawMessage          `json:"packages"`
+	}
+	if err := json.Unmarshal(diffOut.Bytes(), &diffReport); err != nil {
+		t.Fatalf("decode diff JSON: %v", err)
+	}
+	if diffReport.Entrypoints == nil || diffReport.Packages == nil {
+		t.Fatalf("diff JSON missing documented sections: %s", diffOut.String())
+	}
+
+	for _, doc := range []string{"docs/agents.md", filepath.Join(".agents", "skills", "bundleradar", "references", "json-schema.md")} {
+		content, err := os.ReadFile(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(content)
+		for _, field := range []string{"metadata", "entrypoints", "chunks", "modules", "assets", "initialDeltaBytes", "lazyDeltaBytes", "totalDeltaBytes"} {
+			if !strings.Contains(text, field) {
+				t.Errorf("%s does not document actual JSON field %q", doc, field)
+			}
+		}
+		for _, absent := range []string{"schemaVersion", "toolVersion", "packageDeltas", "entrypointDeltas"} {
+			if strings.Contains(text, absent) {
+				t.Errorf("%s documents unsupported JSON field %q", doc, absent)
+			}
 		}
 	}
 }
@@ -236,9 +287,8 @@ func TestDocumentationContract_CLICommandsAndFlags(t *testing.T) {
 	}
 }
 
-// TestDocumentationContract_EntryDocumentation verifies that --entry / -e, the Action input 'entry',
-// source and glob examples, and the TotalJS whole-browser invariant are documented across
-// README.md, docs/index.html, and action.yml.
+// TestDocumentationContract_EntryDocumentation verifies exact --entry examples and the
+// TotalJS whole-browser invariant across README.md, docs/index.html, and action.yml.
 func TestDocumentationContract_EntryDocumentation(t *testing.T) {
 	actionData, err := os.ReadFile("action.yml")
 	if err != nil {
@@ -294,18 +344,16 @@ func TestDocumentationContract_EntryDocumentation(t *testing.T) {
 			t.Errorf("%s missing GitHub Action 'entry' input documentation", docFile)
 		}
 
-		// 3. Must document both source path and emitted chunk glob examples for entry
-		hasSource := strings.Contains(content, "src/main.ts")
-		hasGlob := strings.Contains(content, "main-*.js") || strings.Contains(content, "*.js") || strings.Contains(content, "*worker.js") || strings.Contains(content, "worker.js")
-		if !hasSource {
+		// 3. Document exact source/chunk matches and explain that globs are unsupported.
+		lower := strings.ToLower(content)
+		if !strings.Contains(content, "src/main.ts") {
 			t.Errorf("%s missing source path entry example (e.g. src/main.ts)", docFile)
 		}
-		if !hasGlob {
-			t.Errorf("%s missing emitted chunk glob entry example (e.g. main-*.js)", docFile)
+		if !strings.Contains(content, "main.js") || !strings.Contains(lower, "glob") || !strings.Contains(lower, "not supported") {
+			t.Errorf("%s must show an exact chunk name and say glob matching is unsupported", docFile)
 		}
 
-		// 4. Invariant: --entry scopes initial/lazy reachability and root traces, while TotalJS reflects the whole browser build
-		lower := strings.ToLower(content)
+		// 4. Invariant: --entry scopes available entry data, while TotalJS reflects the whole browser build.
 		hasTotalInvariant := (strings.Contains(lower, "totaljs") || strings.Contains(lower, "total js")) &&
 			(strings.Contains(lower, "whole") || strings.Contains(lower, "entire") || strings.Contains(lower, "all"))
 		hasReachability := strings.Contains(lower, "reachab") || strings.Contains(lower, "initial") || strings.Contains(lower, "trace")

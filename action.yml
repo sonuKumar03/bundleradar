@@ -31,7 +31,7 @@ inputs:
     required: false
     default: ''
   entry:
-    description: 'Scope bundleradar analysis and budget enforcement to a specific entrypoint (e.g. src/main.ts)'
+    description: 'Select an entrypoint by source path or exact emitted chunk name (e.g. src/main.ts or main.js); glob patterns are not supported.'
     required: false
     default: ''
   format:
@@ -382,7 +382,6 @@ runs:
           if [ "$DOWNLOAD_SUCCESS" = "true" ]; then
             if [ -n "$FOUND_BASELINE" ] && [ -f "$FOUND_BASELINE" ]; then
               BASELINE_TARGET="$FOUND_BASELINE"
-              COMPARISON_STATUS="completed"
               COMPARISON_MESSAGE="Retrieved artifact '$EFFECTIVE_ARTIFACT_NAME' from run $SELECTED_RUN_ID ($BRANCH_TARGET@$SELECTED_RUN_SHA)"
               echo "  ✓ $COMPARISON_MESSAGE ($BASELINE_TARGET)"
             else
@@ -406,15 +405,10 @@ runs:
           fi
 
           BASELINE_TARGET="$TARGET_BASE_REF"
-          COMPARISON_STATUS="completed"
-          COMPARISON_MESSAGE="Comparing against base git ref '$TARGET_BASE_REF'"
-        elif [ -n "$BASELINE_TARGET" ] && [ -f "$BASELINE_TARGET" ] && [ "$COMPARISON_STATUS" != "completed" ]; then
-          COMPARISON_STATUS="completed"
-          COMPARISON_MESSAGE="Successfully compared against baseline file '$BASELINE_TARGET'"
+          COMPARISON_MESSAGE="Compared against base git ref '$TARGET_BASE_REF'"
+        elif [ -n "$BASELINE_TARGET" ] && [ -f "$BASELINE_TARGET" ]; then
+          COMPARISON_MESSAGE="Compared against baseline file '$BASELINE_TARGET'"
         fi
-
-        echo "comparison_status=$COMPARISON_STATUS" >> $GITHUB_OUTPUT
-        echo "comparison_message=$COMPARISON_MESSAGE" >> $GITHUB_OUTPUT
 
         # Generate report output
         if [ -n "$BASELINE_TARGET" ]; then
@@ -429,18 +423,27 @@ runs:
           set -e
 
           if [ $DIFF_EXIT -ne 0 ]; then
+            COMPARISON_STATUS="unavailable"
+            COMPARISON_MESSAGE="Baseline comparison failed (exit code $DIFF_EXIT)"
             if [ -n "$INPUT_OUTPUT" ] && [ -f "$INPUT_OUTPUT" ]; then
               echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
             else
+              echo "comparison_status=$COMPARISON_STATUS" >> "$GITHUB_OUTPUT"
+              echo "comparison_message=$COMPARISON_MESSAGE" >> "$GITHUB_OUTPUT"
               echo "::error::bundleradar diff execution failed (exit code $DIFF_EXIT)"
               exit $DIFF_EXIT
             fi
+          else
+            COMPARISON_STATUS="completed"
           fi
         else
           SCAN_FLAGS=("$INPUT_STATS" "${ARGS[@]}" "-f" "$INPUT_FORMAT")
           if [ -n "$INPUT_OUTPUT" ]; then SCAN_FLAGS+=("-o" "$INPUT_OUTPUT"); fi
           bundleradar scan "${SCAN_FLAGS[@]}"
         fi
+
+        echo "comparison_status=$COMPARISON_STATUS" >> "$GITHUB_OUTPUT"
+        echo "comparison_message=$COMPARISON_MESSAGE" >> "$GITHUB_OUTPUT"
 
         # Append to Job Summary if output file exists and GITHUB_STEP_SUMMARY is set
         if [ -n "$GITHUB_STEP_SUMMARY" ] && [ -n "$INPUT_OUTPUT" ] && [ -f "$INPUT_OUTPUT" ]; then

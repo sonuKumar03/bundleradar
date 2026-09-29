@@ -162,22 +162,20 @@ bundleradar gate stats.json --against baseline.json --max-initial-delta 0B
 
 ---
 
-## 📋 JSON Schema Contracts
+## 📋 JSON Output Fields
 
-### Scan JSON (`command: "scan"`)
+The CLI emits the following observed fields with `--format json`. These outputs currently have no explicit schema version.
+
+### Scan JSON (`bundleradar scan -f json`)
 
 | Field | Meaning |
 | :--- | :--- |
-| `schemaVersion` | JSON contract version; currently `"1"`. |
-| `toolVersion` | Tool release version; currently `"2.1.0"`. |
-| `command` | The string `"scan"`. |
-| `summary.initialJs`, `summary.initialGzipJs` | Raw & Gzip bytes of browser JS in static bootstrap closure. |
-| `summary.lazyJs`, `summary.lazyGzipJs` | Raw & Gzip bytes of lazy JS outputs. |
-| `summary.totalJs`, `summary.totalGzipJs` | Total uncompressed & Gzip JS bytes. |
-| `packages[].name` | npm package owner, including scopes. |
-| `packages[].initialBytes` | Emitted input contributions within initial JS outputs. |
-| `packages[].lazyBytes` | Emitted input contributions within lazy JS outputs. |
-| `packages[].totalBytes` | Combined initial + lazy bytes for this package. |
+| `metadata.bundler` | Detected or selected bundler. |
+| `entrypoints.<name>` | Entrypoint name, `initialBytes`, `initialGzipBytes`, `asyncBytes`, and `chunkIds`. |
+| `chunks[]` | Emitted output details: `id`, `name`, `path`, `sizeBytes`, `gzipBytes`, `type`, `entry`, and `moduleIds`. |
+| `modules[]` | Input details: `id`, `package`, `sizeBytes`, `gzipBytes`, `isAppCode`, and `chunkIds`; version and per-chunk fields may be present when available. |
+| `assets[]` | Auxiliary output details: `path`, `sizeBytes`, `gzipBytes`, and `mimeType`. |
+| `gzipEstimated` | Optional indicator that gzip sizes were estimated rather than measured. |
 
 ### Trace JSON (via `--why`)
 
@@ -192,16 +190,22 @@ bundleradar gate stats.json --against baseline.json --max-initial-delta 0B
 | `chains[].path` | Ordered array of module file paths from root to target. |
 | `chains[].bytesInChunk` | Contributed bytes inside this specific chunk. |
 
-### Diff JSON (`command: "diff"`)
+### Diff JSON (`bundleradar diff -f json`)
 
 | Field | Meaning |
 | :--- | :--- |
-| `schemaVersion` | JSON contract version; currently `"1"`. |
-| `toolVersion` | Tool release version; currently `"2.1.0"`. |
-| `command` | The string `"diff"`. |
-| `summary.before`, `summary.after`, `summary.delta` | Each holds `initialJs`, `lazyJs`, and `totalJs`. |
-| `packages[].before`, `packages[].after`, `packages[].delta` | Each holds `initialBytes`, `lazyBytes`, and `totalBytes`. |
-| `packages[].status` | `"added"`, `"removed"`, `"changed"`, or `"unchanged"`. |
+| `summary` | Base/head initial, lazy, and total bytes, with `initialDeltaBytes`, `lazyDeltaBytes`, and `totalDeltaBytes`. |
+| `entrypoints.<name>` | Per-entrypoint `initialDeltaBytes`, `initialGzipDeltaBytes`, and `asyncDeltaBytes`. |
+| `packages[]` | Package changes with `name`, `deltaBytes`, `gzipDeltaBytes`, `baseBytes`, `currBytes`, and `status`. |
+| `unchangedPackages[]` | Optional list of unchanged package contributions. |
+| `addedChunks[]`, `removedChunks[]` | Chunks present only in the head or base bundle. |
+| `microDriftBytes`, `attributions[]` | Collapsed small changes and source-level regression explanations. |
+
+### Gate JSON (`bundleradar gate -f json`)
+
+- `passed`: whether all evaluated policy rules passed.
+- `violations[]`: evaluated failures, each with its rule, severity, and message.
+- `warnings[]`: policy checks that could not be fully evaluated.
 
 ---
 
@@ -218,12 +222,9 @@ Integrations and CI scripts can rely on stable, numeric exit codes:
 
 ---
 
-## 🛡️ Schema Compatibility & Versioning Guarantees
+## 🛡️ JSON Compatibility
 
-- **`schemaVersion: "1"`**: Guarantees backwards compatibility for external automation, CI pipelines, and MCP clients.
-- **Additive Changes**: New optional fields (such as `findings`, `initialGzipJs`, `gzipBytes`, `drillDown`) may be introduced in minor updates. Automation consumers must accept additive keys without breaking.
-- **Breaking Changes**: Modifying existing keys, changing field types, or removing fields will increment `schemaVersion` (e.g., `"2"`).
-- **Deterministic Ordering**: Packages, outputs, findings, and trace chains are sorted deterministically with stable secondary tie-breakers across repeated runs.
+JSON output does not currently carry a schema version or a backward-compatibility guarantee. Automation should consume only fields it needs and tolerate additional fields.
 
 ## 🛠️ Troubleshooting
 
