@@ -194,6 +194,25 @@ jobs:
             exit 1
           fi
 
+      - name: Test Action - Compare each selected app to base ref
+        id: test-multi-app-baseline
+        uses: ./
+        with:
+          working-directory: testdata/minimal
+          apps: first=stats.json,second=stats.json
+          base-ref: master
+          build-cmd: 'true'
+          output: multi-app-report.md
+
+      - name: Assert multi-app comparisons are reported accurately
+        env:
+          STATUS: ${{ steps.test-multi-app-baseline.outputs.comparison-status }}
+          MESSAGE: ${{ steps.test-multi-app-baseline.outputs.comparison-message }}
+        run: |
+          test "$STATUS" = "completed"
+          [[ "$MESSAGE" == *"each selected application"* ]] || (echo "Unexpected comparison message: $MESSAGE" && exit 1)
+          [[ "$MESSAGE" == *"master"* ]] || (echo "Expected base ref in comparison message: $MESSAGE" && exit 1)
+
       - name: Test Action - Upload Artifact Baseline (Fixture Minimal)
         id: test-artifact-baseline
         uses: ./

@@ -191,6 +191,18 @@ runs:
         # 0. Multi-application tracking mode
         if [ -n "$INPUT_PROJECTS" ] || [ -n "$INPUT_APPS" ]; then
           echo "Running bundleradar in explicit multi-application mode..."
+          if [ -n "$INPUT_BASELINE" ]; then
+            echo "::error::The baseline input is not supported in multi-app mode; use base-ref so each app is compared independently."
+            exit 2
+          fi
+          if [ "$INPUT_ARTIFACT_BASELINE" = "true" ] || [ "$INPUT_UPLOAD_ARTIFACT_BASELINE" = "true" ]; then
+            echo "::error::Artifact baseline restore and upload are not supported in multi-app mode."
+            exit 2
+          fi
+          MULTI_BASE_REF="$INPUT_BASE_REF"
+          if [ -z "$MULTI_BASE_REF" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+            MULTI_BASE_REF="$EVENT_BASE_REF"
+          fi
           WS_FLAGS=()
           if [ -n "$INPUT_APPS" ]; then
             for app in ${INPUT_APPS//,/ }; do
@@ -251,8 +263,13 @@ runs:
           echo "initial_bytes=$INITIAL" >> $GITHUB_OUTPUT
           echo "lazy_bytes=$LAZY" >> $GITHUB_OUTPUT
           echo "total_bytes=$TOTAL" >> $GITHUB_OUTPUT
-          echo "comparison_status=completed" >> $GITHUB_OUTPUT
-          echo "comparison_message=Evaluated multi-app workspace scan across tracked targets" >> $GITHUB_OUTPUT
+          if [ -n "$MULTI_BASE_REF" ]; then
+            echo "comparison_status=completed" >> "$GITHUB_OUTPUT"
+            echo "comparison_message=Compared each selected application against base ref '$MULTI_BASE_REF'; workspace report contains current scans" >> "$GITHUB_OUTPUT"
+          else
+            echo "comparison_status=unavailable" >> "$GITHUB_OUTPUT"
+            echo "comparison_message=No baseline configured; multi-app workspace report contains current scans only" >> "$GITHUB_OUTPUT"
+          fi
 
           TARGET_STATS=$(node -e 'console.log(JSON.parse(process.argv[1]).targets.map(t => `${t.statsPath}\t${t.distPath || ""}`).join("\n"))' "$JSON_OUT")
           while IFS=$'\t' read -r stats dist; do
@@ -265,7 +282,7 @@ runs:
             if [ -n "$INPUT_MAX_INITIAL_DELTA" ]; then GATE_FLAGS+=("--max-initial-delta" "$INPUT_MAX_INITIAL_DELTA"); fi
             if [ -n "$INPUT_MAX_TOTAL_DELTA" ]; then GATE_FLAGS+=("--max-total-delta" "$INPUT_MAX_TOTAL_DELTA"); fi
             if [ -n "$INPUT_BASELINE" ]; then GATE_FLAGS+=("--against" "$INPUT_BASELINE"); fi
-            if [ -n "$INPUT_BASE_REF" ]; then GATE_FLAGS+=("--against" "$INPUT_BASE_REF"); fi
+            if [ -n "$MULTI_BASE_REF" ]; then GATE_FLAGS+=("--against" "$MULTI_BASE_REF"); fi
             if [ -n "$INPUT_BUILD_CMD" ]; then GATE_FLAGS+=("--build-cmd" "$INPUT_BUILD_CMD"); fi
             if ! bundleradar gate "${GATE_FLAGS[@]}"; then
               echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
