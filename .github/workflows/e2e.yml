@@ -245,6 +245,7 @@ jobs:
             exit 1
           fi
           test -f testdata/minimal/budget-failure-report.md || (echo "Expected budget failure report to be generated" && exit 1)
+          echo "BUDGET_FAILED=false" >> "$GITHUB_ENV"
 
       - name: Test Action - Lazy Budget Violation Failure
         id: test-lazy-budget
@@ -263,6 +264,7 @@ jobs:
             echo "Expected lazy budget breach to fail, but got: ${{ steps.test-lazy-budget.outcome }}"
             exit 1
           fi
+          echo "BUDGET_FAILED=false" >> "$GITHUB_ENV"
 
       - name: Test Action - Total Delta Budget Violation Failure
         id: test-total-delta-budget
@@ -281,3 +283,26 @@ jobs:
             echo "Expected total delta budget breach to fail, but got: ${{ steps.test-total-delta-budget.outcome }}"
             exit 1
           fi
+          echo "BUDGET_FAILED=false" >> "$GITHUB_ENV"
+
+      - name: Prepare config-only Action budget
+        run: |
+          printf 'budgets:\n  initial_js_max: 100B\n' > testdata/minimal/.bundleradar.yml
+
+      - name: Test Action - Config-Only Budget Violation
+        id: test-config-budget
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: testdata/minimal
+          stats: stats.json
+          output: config-budget-failure-report.md
+          build-cmd: 'true'
+
+      - name: Assert Config-Only Budget Violation Failed
+        run: |
+          if [ "${{ steps.test-config-budget.outcome }}" != "failure" ]; then
+            echo "Expected config-only budget breach to fail, but got: ${{ steps.test-config-budget.outcome }}"
+            exit 1
+          fi
+          rm testdata/minimal/.bundleradar.yml

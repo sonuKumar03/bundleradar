@@ -449,12 +449,11 @@ runs:
         if [ -n "$INPUT_MAX_INITIAL_DELTA" ]; then GATE_FLAGS+=("--max-initial-delta" "$INPUT_MAX_INITIAL_DELTA"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_MAX_TOTAL_DELTA" ]; then GATE_FLAGS+=("--max-total-delta" "$INPUT_MAX_TOTAL_DELTA"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_BUILD_CMD" ]; then GATE_FLAGS+=("--build-cmd" "$INPUT_BUILD_CMD"); fi
+        if [ "$HAS_BUDGET" = "false" ]; then GATE_FLAGS+=("--detect-duplicate-pkgs=false"); fi
 
-        if [ "$HAS_BUDGET" = "true" ]; then
-          echo "Enforcing bundle size budgets with bundleradar gate..."
-          if ! bundleradar gate "${GATE_FLAGS[@]}"; then
-            echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
-          fi
+        echo "Enforcing bundle size budgets and configured policies with bundleradar gate..."
+        if ! bundleradar gate "${GATE_FLAGS[@]}"; then
+          echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
         fi
 
     - name: Post PR Comment
