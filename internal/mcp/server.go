@@ -180,6 +180,9 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	maxTotal := req.GetString("max_total", "")
 	maxInitialDelta := req.GetString("max_initial_delta", "")
 	forbidList := req.GetStringSlice("forbid", nil)
+	if maxInitialDelta != "" && against == "" {
+		return mcpspec.NewToolResultError("max_initial_delta requires a readable baseline in against"), nil
+	}
 
 	client := bundleradar.New()
 	bundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path})
@@ -190,26 +193,33 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	var d *bundleradar.BundleDiff
 	if against != "" {
 		baseBundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: against})
-		if err == nil {
-			d = client.Diff(baseBundle, bundle, diff.Options{})
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan baseline bundle: %v", err)), nil
 		}
+		d = client.Diff(baseBundle, bundle, diff.Options{})
 	}
 
 	var pol bundleradar.Policy
 	if maxInitial != "" {
-		if val, err := bundleradar.ParseBytes(maxInitial); err == nil {
-			pol.MaxInitial = &val
+		val, err := bundleradar.ParseBytes(maxInitial)
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_initial: %v", err)), nil
 		}
+		pol.MaxInitial = &val
 	}
 	if maxTotal != "" {
-		if val, err := bundleradar.ParseBytes(maxTotal); err == nil {
-			pol.MaxTotal = &val
+		val, err := bundleradar.ParseBytes(maxTotal)
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_total: %v", err)), nil
 		}
+		pol.MaxTotal = &val
 	}
 	if maxInitialDelta != "" {
-		if val, err := bundleradar.ParseBytes(maxInitialDelta); err == nil {
-			pol.MaxInitialDelta = &val
+		val, err := bundleradar.ParseBytes(maxInitialDelta)
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_initial_delta: %v", err)), nil
 		}
+		pol.MaxInitialDelta = &val
 	}
 	pol.ForbiddenPkgs = forbidList
 	pol.DetectDuplicatePkgs = true
