@@ -176,7 +176,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	var asyncBytes int64
 	var initialChunkIDs []string
 
-	// 2.5 Compute shortest import ingress path from entrypoint roots
+	// 2.5 Trace static and dynamic imports for explanations; initial classification above stays static-only.
 	rootInputs := make([]string, 0)
 	for _, outPath := range sortedOutputs {
 		out := meta.Outputs[outPath]
@@ -220,7 +220,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 		if inData, ok := meta.Inputs[curr]; ok {
 			for _, imp := range inData.Imports {
-				if imp.Kind != "import-statement" {
+				if imp.Kind != "import-statement" && imp.Kind != "dynamic-import" {
 					continue
 				}
 				target := imp.Path
