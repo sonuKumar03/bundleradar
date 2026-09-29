@@ -324,6 +324,50 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare branch-scoped artifact downloader
+        run: |
+          mkdir -p "$RUNNER_TEMP/fake-gh"
+          cat > "$RUNNER_TEMP/fake-gh/gh" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          case "$1 $2" in
+            "run list")
+              case " $* " in *" --branch master "*) ;; *) exit 2 ;; esac
+              case " $* " in *" --status success "*) ;; *) exit 2 ;; esac
+              printf '44\tmaster\t1111111111111111\n42\tmaster\t0123456789abcdef\n'
+              ;;
+            "run download")
+              [ "$3" = 44 ] && exit 1
+              [ "$3" = 42 ] && [ "$5" = fixture-test-baseline ] || exit 2
+              mkdir -p "$7"
+              cp "$GITHUB_WORKSPACE/testdata/minimal/stats.json" "$7/baseline.json"
+              ;;
+            *) echo "unexpected gh invocation: $*" >&2; exit 2 ;;
+          esac
+          EOF
+          chmod +x "$RUNNER_TEMP/fake-gh/gh"
+          echo "$RUNNER_TEMP/fake-gh" >> "$GITHUB_PATH"
+
+      - name: Test Action - Download baseline from exact base branch run
+        id: test-branch-artifact
+        uses: ./
+        with:
+          working-directory: testdata/minimal
+          stats: stats.json
+          artifact-baseline: 'true'
+          artifact-name: fixture-test-baseline
+          base-ref: master
+          build-cmd: 'true'
+          output: branch-artifact-report.md
+
+      - name: Assert Action reports artifact run provenance
+        run: |
+          test "${{ steps.test-branch-artifact.outputs.comparison-status }}" = completed
+          case "${{ steps.test-branch-artifact.outputs.comparison-message }}" in
+            *"run 42"*"master"*"0123456789abcdef"*) ;;
+            *) echo "Missing selected baseline run provenance: ${{ steps.test-branch-artifact.outputs.comparison-message }}"; exit 1 ;;
+          esac
+
       - name: Prepare config-only Action budget
         run: |
           printf 'budgets:\n  initial_js_max: 100B\n' > testdata/minimal/.bundleradar.yml

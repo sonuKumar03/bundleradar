@@ -326,27 +326,47 @@ runs:
           ARTIFACT_DIR=".bundleradar/artifacts/$EFFECTIVE_ARTIFACT_NAME"
           mkdir -p "$ARTIFACT_DIR"
 
-          GH_DOWNLOAD_ARGS=("--name" "$EFFECTIVE_ARTIFACT_NAME" "--dir" "$ARTIFACT_DIR")
+          GH_REPO_ARGS=()
           if [ -n "$GITHUB_REPOSITORY" ]; then
-            GH_DOWNLOAD_ARGS+=("--repo" "$GITHUB_REPOSITORY")
+            GH_REPO_ARGS+=("--repo" "$GITHUB_REPOSITORY")
           fi
 
           DOWNLOAD_SUCCESS=false
           export GH_TOKEN="${INPUT_GITHUB_TOKEN:-$GITHUB_TOKEN}"
 
           BRANCH_TARGET="${TARGET_BASE_REF#origin/}"
-          if [ -n "$BRANCH_TARGET" ] && gh run download --branch "$BRANCH_TARGET" "${GH_DOWNLOAD_ARGS[@]}" 2>/dev/null; then
-            DOWNLOAD_SUCCESS=true
-          elif gh run download "${GH_DOWNLOAD_ARGS[@]}" 2>/dev/null; then
-            DOWNLOAD_SUCCESS=true
+          BRANCH_TARGET="${BRANCH_TARGET#refs/heads/}"
+          BASELINE_RUNS=""
+          if [ -n "$BRANCH_TARGET" ]; then
+            BASELINE_RUNS=$(gh run list --branch "$BRANCH_TARGET" --status success --limit 100 --json databaseId,headBranch,headSha --jq '.[] | [.databaseId, .headBranch, .headSha] | @tsv' "${GH_REPO_ARGS[@]}" 2>/dev/null || true)
           fi
 
+          SELECTED_RUN_ID=""
+          SELECTED_RUN_SHA=""
+          while IFS=$'\t' read -r RUN_ID RUN_BRANCH RUN_SHA; do
+            [ -n "$RUN_ID" ] || continue
+            [ "$RUN_BRANCH" = "$BRANCH_TARGET" ] || continue
+
+            RUN_ARTIFACT_DIR="$ARTIFACT_DIR/$RUN_ID"
+            mkdir -p "$RUN_ARTIFACT_DIR"
+            FOUND_BASELINE=""
+            GH_DOWNLOAD_ARGS=("--name" "$EFFECTIVE_ARTIFACT_NAME" "--dir" "$RUN_ARTIFACT_DIR" "${GH_REPO_ARGS[@]}")
+            if gh run download "$RUN_ID" "${GH_DOWNLOAD_ARGS[@]}" 2>/dev/null; then
+              FOUND_BASELINE=$(find "$RUN_ARTIFACT_DIR" -type f -name "*.json" 2>/dev/null | head -n 1)
+              if [ -n "$FOUND_BASELINE" ] && [ -f "$FOUND_BASELINE" ]; then
+                SELECTED_RUN_ID="$RUN_ID"
+                SELECTED_RUN_SHA="$RUN_SHA"
+                DOWNLOAD_SUCCESS=true
+                break
+              fi
+            fi
+          done <<< "$BASELINE_RUNS"
+
           if [ "$DOWNLOAD_SUCCESS" = "true" ]; then
-            FOUND_BASELINE=$(find "$ARTIFACT_DIR" -type f -name "*.json" 2>/dev/null | head -n 1)
             if [ -n "$FOUND_BASELINE" ] && [ -f "$FOUND_BASELINE" ]; then
               BASELINE_TARGET="$FOUND_BASELINE"
               COMPARISON_STATUS="completed"
-              COMPARISON_MESSAGE="Successfully retrieved baseline from artifact '$EFFECTIVE_ARTIFACT_NAME'"
+              COMPARISON_MESSAGE="Retrieved artifact '$EFFECTIVE_ARTIFACT_NAME' from run $SELECTED_RUN_ID ($BRANCH_TARGET@$SELECTED_RUN_SHA)"
               echo "  ✓ $COMPARISON_MESSAGE ($BASELINE_TARGET)"
             else
               echo "  ::warning::Artifact '$EFFECTIVE_ARTIFACT_NAME' downloaded but contained no valid JSON baseline file."
@@ -371,7 +391,7 @@ runs:
           BASELINE_TARGET="$TARGET_BASE_REF"
           COMPARISON_STATUS="completed"
           COMPARISON_MESSAGE="Comparing against base git ref '$TARGET_BASE_REF'"
-        elif [ -n "$BASELINE_TARGET" ] && [ -f "$BASELINE_TARGET" ]; then
+        elif [ -n "$BASELINE_TARGET" ] && [ -f "$BASELINE_TARGET" ] && [ "$COMPARISON_STATUS" != "completed" ]; then
           COMPARISON_STATUS="completed"
           COMPARISON_MESSAGE="Successfully compared against baseline file '$BASELINE_TARGET'"
         fi
