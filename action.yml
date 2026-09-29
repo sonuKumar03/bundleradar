@@ -275,6 +275,27 @@ runs:
           exit 0
         fi
 
+        if [ -z "$INPUT_STATS" ]; then
+          STATS_CANDIDATES=()
+          while IFS= read -r -d '' stats; do STATS_CANDIDATES+=("$stats"); done < <(find . -type d \( -name .git -o -name node_modules \) -prune -o -type f -name stats.json -print0)
+          INPUT_STATS=$(node -e '
+            const path = require("path");
+            const candidates = process.argv.slice(1, -1);
+            const project = process.argv.at(-1);
+            const matches = project
+              ? candidates.filter(file => path.relative(process.cwd(), file).split(path.sep).includes(project))
+              : candidates;
+            if (matches.length !== 1) {
+              console.error(matches.length === 0
+                ? `Unable to auto-detect stats.json${project ? ` for project ${project}` : ""}; set the stats input.`
+                : `Found ${matches.length} stats.json files${project ? ` for project ${project}` : ""}; set the project or stats input.`);
+              process.exit(2);
+            }
+            console.log(matches[0]);
+          ' "${STATS_CANDIDATES[@]}" "$INPUT_PROJECT")
+          echo "Auto-detected stats file: $INPUT_STATS"
+        fi
+
         ARGS=()
         if [ -n "$INPUT_DIST" ]; then ARGS+=("-d" "$INPUT_DIST"); fi
         if [ -n "$INPUT_ENTRY" ]; then ARGS+=("--entry" "$INPUT_ENTRY"); fi

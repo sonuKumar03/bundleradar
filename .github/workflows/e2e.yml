@@ -285,6 +285,45 @@ jobs:
           fi
           echo "BUDGET_FAILED=false" >> "$GITHUB_ENV"
 
+      - name: Prepare Action stats auto-detection fixtures
+        run: |
+          mkdir -p testdata/minimal/autodetect/app testdata/minimal/autodetect/other
+          cp testdata/minimal/stats.json testdata/minimal/autodetect/app/stats.json
+          cp testdata/minimal/stats.json testdata/minimal/autodetect/other/stats.json
+
+      - name: Test Action - Auto-detect stats for selected project
+        id: test-auto-stats
+        uses: ./
+        with:
+          working-directory: testdata/minimal/autodetect
+          project: app
+          baseline: app/stats.json
+          build-cmd: 'true'
+          output: auto-stats-report.md
+          json-output: auto-stats-audit.json
+
+      - name: Assert Action selected project stats
+        run: |
+          test -f testdata/minimal/autodetect/auto-stats-report.md
+          test -f testdata/minimal/autodetect/auto-stats-audit.json
+          test "${{ steps.test-auto-stats.outputs.initial-bytes }}" -gt 0
+
+      - name: Test Action - Reject ambiguous automatic stats
+        id: test-ambiguous-auto-stats
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: testdata/minimal/autodetect
+          build-cmd: 'true'
+          output: ambiguous-auto-stats-report.md
+
+      - name: Assert Action rejected ambiguous stats
+        run: |
+          if [ "${{ steps.test-ambiguous-auto-stats.outcome }}" != "failure" ]; then
+            echo "Expected ambiguous stats selection to fail, but got: ${{ steps.test-ambiguous-auto-stats.outcome }}"
+            exit 1
+          fi
+
       - name: Prepare config-only Action budget
         run: |
           printf 'budgets:\n  initial_js_max: 100B\n' > testdata/minimal/.bundleradar.yml
