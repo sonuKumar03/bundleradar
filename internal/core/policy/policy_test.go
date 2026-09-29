@@ -42,13 +42,13 @@ func TestPolicy_LimitsAndRules(t *testing.T) {
 		},
 	}
 
-	maxInitial := int64(200000) // 200KB limit (bundle is 250KB -> fails)
+	maxInitial := int64(200000)     // 200KB limit (bundle is 250KB -> fails)
 	maxInitialDelta := int64(10000) // 10KB delta limit (delta is 15KB -> fails)
 
 	p := policy.Policy{
 		MaxInitial:          &maxInitial,
-		MaxInitialDelta:      &maxInitialDelta,
-		ForbiddenPkgs:        []string{"moment"},
+		MaxInitialDelta:     &maxInitialDelta,
+		ForbiddenPkgs:       []string{"moment"},
 		DetectDuplicatePkgs: true,
 	}
 
@@ -58,10 +58,10 @@ func TestPolicy_LimitsAndRules(t *testing.T) {
 	}
 
 	expectedRules := map[string]bool{
-		"MAX_INITIAL_SIZE":        false,
-		"MAX_INITIAL_DELTA":       false,
-		"FORBIDDEN_PACKAGE":       false,
-		"DUPLICATE_PACKAGE_VER":   false,
+		"MAX_INITIAL_SIZE":      false,
+		"MAX_INITIAL_DELTA":     false,
+		"FORBIDDEN_PACKAGE":     false,
+		"DUPLICATE_PACKAGE_VER": false,
 	}
 
 	for _, v := range res.Violations {
@@ -121,5 +121,14 @@ func TestPolicy_LazyAndTotalDeltaBudgets(t *testing.T) {
 	}
 	if !got["MAX_LAZY_SIZE"] || !got["MAX_TOTAL_DELTA"] {
 		t.Fatalf("budget violations = %+v, want MAX_LAZY_SIZE and MAX_TOTAL_DELTA", res.Violations)
+	}
+}
+
+func TestPolicyWarnsWhenDuplicateVersionEvidenceIsMissing(t *testing.T) {
+	bundle := core.NewBundle(core.Metadata{})
+	bundle.AddModule(core.Module{ID: "node_modules/pkg/index.js", Package: "pkg"})
+	result := policy.Evaluate(bundle, nil, policy.Policy{DetectDuplicatePkgs: true})
+	if !result.Passed || len(result.Warnings) != 1 || result.Warnings[0].Rule != "DUPLICATE_PACKAGE_VERSION_UNKNOWN" {
+		t.Fatalf("missing-version result = %+v, want passing result with incomplete-evidence warning", result)
 	}
 }

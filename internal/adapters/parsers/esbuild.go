@@ -211,17 +211,29 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 }
 
 func extractPackageName(path string) string {
-	idx := strings.Index(path, "node_modules/")
+	name, _ := extractPackageLocation(path)
+	return name
+}
+
+func extractPackageLocation(path string) (string, string) {
+	path = filepath.ToSlash(filepath.Clean(path))
+	idx := strings.LastIndex(path, "node_modules/")
 	if idx == -1 {
-		return ""
+		return "", ""
 	}
 	sub := path[idx+len("node_modules/"):]
 	parts := strings.Split(sub, "/")
-	if len(parts) == 0 {
-		return ""
+	if len(parts) == 0 || parts[0] == "" {
+		return "", ""
 	}
-	if strings.HasPrefix(parts[0], "@") && len(parts) > 1 {
-		return parts[0] + "/" + parts[1]
+	packageParts := 1
+	if strings.HasPrefix(parts[0], "@") {
+		if len(parts) < 2 {
+			return "", ""
+		}
+		packageParts = 2
 	}
-	return parts[0]
+	name := strings.Join(parts[:packageParts], "/")
+	root := filepath.FromSlash(path[:idx+len("node_modules/")] + name)
+	return name, root
 }

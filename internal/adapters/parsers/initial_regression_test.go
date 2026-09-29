@@ -12,6 +12,7 @@ import (
 	"github.com/sonuKumar03/bundleradar/internal/adapters/parsers"
 	"github.com/sonuKumar03/bundleradar/internal/adapters/reporters"
 	"github.com/sonuKumar03/bundleradar/internal/core"
+	"github.com/sonuKumar03/bundleradar/internal/core/policy"
 )
 
 func writeStats(t *testing.T, name, data string) string {
@@ -121,6 +122,40 @@ func TestAngularWhyFollowsDynamicImportIngress(t *testing.T) {
 	wantPath := []string{"src/main.ts", "src/lazy.ts", "node_modules/heavy/index.js"}
 	if !slices.Equal(result.Chains[0].Path, wantPath) {
 		t.Fatalf("lazy ingress path = %v, want %v", result.Chains[0].Path, wantPath)
+	}
+}
+
+func TestAngularDuplicateVersionsUseInstalledPackageMetadata(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","inputs":{"node_modules/pkg/index.js":{"bytesInOutput":100}}},"lazy.js":{"bytes":200,"inputs":{"node_modules/parent/node_modules/pkg/index.js":{"bytesInOutput":200}}}}}`)
+	for dir, version := range map[string]string{
+		"node_modules/pkg":                     "1.2.3",
+		"node_modules/parent/node_modules/pkg": "2.0.0",
+	} {
+		packageDir := filepath.Join(filepath.Dir(stats), dir)
+		if err := os.MkdirAll(packageDir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(packageDir, "package.json"), []byte(`{"version":"`+version+`"}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	versions := map[string]bool{}
+	for _, module := range bundle.Modules {
+		if module.Package == "pkg" {
+			versions[module.Version] = true
+		}
+	}
+	if !versions["1.2.3"] || !versions["2.0.0"] || len(versions) != 2 {
+		t.Fatalf("installed package versions = %v, want 1.2.3 and 2.0.0", versions)
+	}
+	result := policy.Evaluate(bundle, nil, policy.Policy{DetectDuplicatePkgs: true})
+	if result.Passed || len(result.Violations) != 1 || result.Violations[0].Rule != "DUPLICATE_PACKAGE_VER" {
+		t.Fatalf("duplicate-version result = %+v, want DUPLICATE_PACKAGE_VER", result)
 	}
 }
 

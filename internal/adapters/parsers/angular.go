@@ -3,6 +3,7 @@ package parsers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -239,6 +240,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	}
 
 	seenModules := make(map[string]*core.Module)
+	packageVersions := make(map[string]string)
 
 	// 3. Process outputs: Separate code chunks from CSS and auxiliary assets
 	for _, outPath := range sortedOutputs {
@@ -318,7 +320,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				existing.SizeBytes += inBytes.BytesInOutput
 				existing.GzipBytes += estimateGzip(inBytes.BytesInOutput, inPath)
 			} else {
-				pkgName := extractPackageName(inPath)
+				pkgName, pkgRoot := extractPackageLocation(inPath)
 				isApp := (pkgName == "")
 				var p []string
 				if path, ok := ingressPaths[inPath]; ok {
@@ -327,6 +329,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				mod := &core.Module{
 					ID:           inPath,
 					Package:      pkgName,
+					Version:      installedPackageVersion(pkgRoot, target.StatsPath, packageVersions),
 					SizeBytes:    inBytes.BytesInOutput,
 					GzipBytes:    estimateGzip(inBytes.BytesInOutput, inPath),
 					IsAppCode:    isApp,
@@ -362,6 +365,48 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	})
 
 	return bundle, nil
+}
+
+func installedPackageVersion(packageRoot, statsPath string, cache map[string]string) string {
+	if packageRoot == "" {
+		return ""
+	}
+	if version, ok := cache[packageRoot]; ok {
+		return version
+	}
+
+	var searchDirs []string
+	if filepath.IsAbs(packageRoot) {
+		searchDirs = []string{""}
+	} else {
+		for dir := filepath.Dir(statsPath); ; dir = filepath.Dir(dir) {
+			searchDirs = append(searchDirs, dir)
+			if parent := filepath.Dir(dir); parent == dir {
+				break
+			}
+		}
+	}
+
+	version := ""
+	for _, dir := range searchDirs {
+		packageJSON := filepath.Join(dir, packageRoot, "package.json")
+		data, err := os.ReadFile(packageJSON)
+		if err != nil {
+			if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
+				break
+			}
+			continue
+		}
+		var installed struct {
+			Version string `json:"version"`
+		}
+		if json.Unmarshal(data, &installed) == nil {
+			version = strings.TrimSpace(installed.Version)
+		}
+		break
+	}
+	cache[packageRoot] = version
+	return version
 }
 
 func inferMimeType(ext string) string {

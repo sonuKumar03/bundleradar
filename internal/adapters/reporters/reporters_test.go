@@ -98,6 +98,30 @@ func TestReporters_GateResult(t *testing.T) {
 	}
 }
 
+func TestReporters_GateWarnings(t *testing.T) {
+	evalRes := policy.EvaluationResult{
+		Passed: true,
+		Warnings: []policy.Violation{{
+			Severity: "warning",
+			Rule:     "DUPLICATE_PACKAGE_VERSION_UNKNOWN",
+			Message:  "Version metadata is unavailable for 1 package.",
+		}},
+	}
+	for _, format := range []string{"terminal", "markdown"} {
+		reporter, err := reporters.New(format)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var output bytes.Buffer
+		if err := reporter.Render(context.Background(), &output, evalRes); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(output.String(), "DUPLICATE_PACKAGE_VERSION_UNKNOWN") {
+			t.Fatalf("%s report omitted the policy warning: %s", format, output.String())
+		}
+	}
+}
+
 func TestReporters_DiffMarkdown(t *testing.T) {
 	d := &diff.BundleDiff{
 		Summary: diff.DiffSummary{

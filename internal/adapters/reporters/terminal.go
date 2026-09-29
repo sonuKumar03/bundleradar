@@ -121,6 +121,9 @@ func (r *TerminalReporter) Render(ctx context.Context, w io.Writer, data any) er
 			}
 			sb.WriteString("\n")
 		}
+		for _, warning := range v.Warnings {
+			fmt.Fprintf(&sb, "[!] Warning %s: %s\n", warning.Rule, warning.Message)
+		}
 
 	default:
 		return fmt.Errorf("terminal reporter: unsupported data type %T", data)

@@ -184,6 +184,12 @@ func (r *MarkdownReporter) Render(ctx context.Context, w io.Writer, data any) er
 			}
 			sb.WriteString("\n")
 		}
+		for _, warning := range v.Warnings {
+			fmt.Fprintf(&sb, "- **Warning `%s`**: %s\n", warning.Rule, warning.Message)
+		}
+		if len(v.Warnings) > 0 {
+			sb.WriteString("\n")
+		}
 
 	default:
 		return fmt.Errorf("markdown reporter: unsupported data type %T", data)
