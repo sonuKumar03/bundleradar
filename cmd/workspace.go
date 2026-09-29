@@ -104,12 +104,23 @@ func newWorkspaceCommand() *cobra.Command {
 				})
 				scans = append(scans, targetScan{target: t, bundle: b, err: err})
 			}
+			failedScans := 0
+			for _, s := range scans {
+				if s.err != nil {
+					failedScans++
+				}
+			}
+			var scanError error
+			if failedScans > 0 {
+				scanError = fmt.Errorf("workspace scan incomplete: %d of %d target(s) failed", failedScans, len(scans))
+			}
 
 			if format == "json" {
 				type TargetResult struct {
 					Name         string `json:"name"`
 					StatsPath    string `json:"statsPath"`
 					DistPath     string `json:"distPath,omitempty"`
+					Error        string `json:"error,omitempty"`
 					InitialBytes int64  `json:"initialBytes"`
 					AsyncBytes   int64  `json:"asyncBytes"`
 					TotalBytes   int64  `json:"totalBytes"`
@@ -125,6 +136,10 @@ func newWorkspaceCommand() *cobra.Command {
 				res := WorkspaceResult{Targets: make([]TargetResult, 0, len(scans))}
 				for _, s := range scans {
 					if s.err != nil {
+						res.Targets = append(res.Targets, TargetResult{
+							Name: s.target.Name, StatsPath: s.target.StatsPath,
+							DistPath: s.target.DistPath, Error: s.err.Error(),
+						})
 						continue
 					}
 					var chunkBytes int64
@@ -147,7 +162,10 @@ func newWorkspaceCommand() *cobra.Command {
 				}
 				enc := json.NewEncoder(w)
 				enc.SetIndent("", "  ")
-				return enc.Encode(res)
+				if err := enc.Encode(res); err != nil {
+					return err
+				}
+				return scanError
 			}
 
 			if format == "markdown" {
@@ -163,7 +181,7 @@ func newWorkspaceCommand() *cobra.Command {
 						s.target.Name, bundleradar.FormatBytes(s.bundle.TotalInitialBytes()), bundleradar.FormatBytes(s.bundle.TotalAsyncBytes()), len(s.bundle.Chunks))
 				}
 				fmt.Fprintf(w, "\n")
-				return nil
+				return scanError
 			}
 
 			fmt.Fprintf(w, "\n⚡ WORKSPACE BUNDLE SCAN (%d targets)\n", len(targets))
@@ -177,7 +195,7 @@ func newWorkspaceCommand() *cobra.Command {
 					s.target.Name, s.bundle.TotalInitialBytes(), s.bundle.TotalAsyncBytes(), len(s.bundle.Chunks))
 			}
 			fmt.Fprintf(w, "\n")
-			return nil
+			return scanError
 		},
 	}
 
