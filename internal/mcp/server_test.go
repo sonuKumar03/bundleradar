@@ -2,6 +2,7 @@ package mcp_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -95,5 +96,47 @@ func TestHandleGateRejectsUnevaluatedBudgets(t *testing.T) {
 				t.Fatalf("expected gate input error, got %+v", res)
 			}
 		})
+	}
+}
+
+func TestHandleGateLoadsConfigAndAllowsExplicitOverride(t *testing.T) {
+	statsPath, err := filepath.Abs("../../testdata/minimal/stats.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	configDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(configDir, ".bundleradar.yml"), []byte("budgets:\n  initial_js_max: 1B\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(configDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldDir) })
+
+	tool := mcp.NewServer().GetTool("bundle_gate")
+	call := func(args map[string]any) string {
+		t.Helper()
+		res, err := tool.Handler(context.Background(), mcpspec.CallToolRequest{
+			Params: mcpspec.CallToolParams{Name: "bundle_gate", Arguments: args},
+		})
+		if err != nil || res == nil {
+			t.Fatalf("call tool: result=%+v error=%v", res, err)
+		}
+		if res.IsError {
+			t.Fatalf("invalid gate response: %+v", res)
+		}
+		return res.Content[0].(mcpspec.TextContent).Text
+	}
+
+	result := call(map[string]any{"path": statsPath})
+	if !strings.Contains(result, `"passed": false`) || !strings.Contains(result, `"rule": "MAX_INITIAL_SIZE"`) {
+		t.Fatalf("config-only gate response = %s, want MAX_INITIAL_SIZE failure", result)
+	}
+	if result := call(map[string]any{"path": statsPath, "max_initial": "5MB"}); !strings.Contains(result, `"passed": true`) {
+		t.Fatal("explicit max_initial should override the config limit")
 	}
 }

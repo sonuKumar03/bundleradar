@@ -168,6 +168,28 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare config-only Action budget
+        run: |
+          printf 'budgets:\n  initial_js_max: 100B\n' > testdata/minimal/.bundleradar.yml
+
+      - name: Test Action - Config-Only Budget Violation
+        id: test-config-budget
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: testdata/minimal
+          stats: stats.json
+          output: config-budget-failure-report.md
+          build-cmd: 'true'
+
+      - name: Assert Config-Only Budget Violation Failed
+        run: |
+          if [ "${{ steps.test-config-budget.outcome }}" != "failure" ]; then
+            echo "Expected config-only budget breach to fail, but got: ${{ steps.test-config-budget.outcome }}"
+            exit 1
+          fi
+          rm testdata/minimal/.bundleradar.yml
+
       - name: Test Action - Success Case with Entry (Fixture Minimal)
         id: test-entry
         uses: ./

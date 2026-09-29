@@ -203,7 +203,14 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		d = client.Diff(baseBundle, bundle, diff.Options{})
 	}
 
-	var pol bundleradar.Policy
+	cfg, _, err := bundleradar.FindAndLoadConfig("")
+	if err != nil {
+		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to load config: %v", err)), nil
+	}
+	pol, err := cfg.ToPolicy()
+	if err != nil {
+		return mcpspec.NewToolResultError(fmt.Sprintf("Invalid config: %v", err)), nil
+	}
 	if maxInitial != "" {
 		val, err := bundleradar.ParseBytes(maxInitial)
 		if err != nil {
@@ -239,7 +246,11 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		}
 		pol.MaxTotalDelta = &val
 	}
-	pol.ForbiddenPkgs = forbidList
+	if args, ok := req.Params.Arguments.(map[string]any); ok {
+		if _, explicit := args["forbid"]; explicit {
+			pol.ForbiddenPkgs = forbidList
+		}
+	}
 	pol.DetectDuplicatePkgs = true
 
 	evalRes := client.Gate(bundle, d, pol)
