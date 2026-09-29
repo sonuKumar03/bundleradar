@@ -1,12 +1,16 @@
 package parsers_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/sonuKumar03/bundleradar/internal/adapters/parsers"
+	"github.com/sonuKumar03/bundleradar/internal/adapters/reporters"
 	"github.com/sonuKumar03/bundleradar/internal/core"
 )
 
@@ -87,6 +91,36 @@ func TestAngularInitialFilesFollowIndexHTML(t *testing.T) {
 	}
 	if bundle.GzipEstimated {
 		t.Fatal("gzip sizes should use emitted files under browser/")
+	}
+}
+
+func TestAngularWhyFollowsDynamicImportIngress(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"src/main.ts":{"imports":[{"path":"src/lazy.ts","kind":"dynamic-import"}]},"src/lazy.ts":{"imports":[{"path":"node_modules/heavy/index.js","kind":"import-statement"}]},"node_modules/heavy/index.js":{}},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","imports":[{"path":"lazy.js","kind":"dynamic-import"}],"inputs":{"src/main.ts":{"bytesInOutput":100}}},"lazy.js":{"bytes":200,"inputs":{"node_modules/heavy/index.js":{"bytesInOutput":200}}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	if err := reporters.NewWhy("heavy", "json").Render(context.Background(), &output, bundle); err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		LazyBytes int64 `json:"lazyBytes"`
+		Chains    []struct {
+			Initial bool     `json:"initial"`
+			Path    []string `json:"path"`
+		} `json:"chains"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.LazyBytes != 200 || len(result.Chains) != 1 || result.Chains[0].Initial {
+		t.Fatalf("lazy contribution/load type = %+v, want 200 bytes in a lazy output", result)
+	}
+	wantPath := []string{"src/main.ts", "src/lazy.ts", "node_modules/heavy/index.js"}
+	if !slices.Equal(result.Chains[0].Path, wantPath) {
+		t.Fatalf("lazy ingress path = %v, want %v", result.Chains[0].Path, wantPath)
 	}
 }
 
