@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sonuKumar03/bundleradar/internal/adapters/parsers"
@@ -94,6 +95,47 @@ func TestNxResolver(t *testing.T) {
 	}
 }
 
+func TestRegistryExplainsAngularCLIWorkspacesNeedExplicitTargets(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "angular.json"), []byte(`{"projects":{}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := workspaces.DefaultRegistry().Resolve(context.Background(), root)
+	if err == nil || !strings.Contains(err.Error(), "--app NAME=STATS[:DIST]") {
+		t.Fatalf("expected explicit target guidance for Angular CLI workspace, got %v", err)
+	}
+}
+
+func TestNxResolverUsesProjectNameAndBuildOutputPath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "nx.json"), []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	projectDir := filepath.Join(root, "apps", "web")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	project := `{"name":"storefront","projectType":"application","targets":{"build":{"options":{"outputPath":"out/storefront"}}}}`
+	if err := os.WriteFile(filepath.Join(projectDir, "project.json"), []byte(project), 0644); err != nil {
+		t.Fatal(err)
+	}
+	statsPath := filepath.Join(root, "out", "storefront", "stats.json")
+	if err := os.MkdirAll(filepath.Dir(statsPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statsPath, []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	targets, err := (&workspaces.NxResolver{}).Resolve(context.Background(), root)
+	if err != nil {
+		t.Fatalf("resolve Nx projects: %v", err)
+	}
+	if len(targets) != 1 || targets[0].Name != "storefront" || targets[0].StatsPath != statsPath {
+		t.Fatalf("expected storefront at %q, got %+v", statsPath, targets)
+	}
+}
+
 func TestNxResolver_EndToEndAngularScan(t *testing.T) {
 	nxDir := filepath.Join("..", "..", "..", "testdata", "nx-workspace")
 	resolver := &workspaces.NxResolver{}
@@ -146,4 +188,3 @@ func TestNxResolver_EndToEndAngularScan(t *testing.T) {
 		}
 	}
 }
-
