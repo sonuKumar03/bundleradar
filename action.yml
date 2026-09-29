@@ -407,7 +407,11 @@ runs:
           BASELINE_TARGET="$TARGET_BASE_REF"
           COMPARISON_MESSAGE="Compared against base git ref '$TARGET_BASE_REF'"
         elif [ -n "$BASELINE_TARGET" ] && [ -f "$BASELINE_TARGET" ]; then
-          COMPARISON_MESSAGE="Compared against baseline file '$BASELINE_TARGET'"
+          if [ -n "$COMPARISON_MESSAGE" ]; then
+            COMPARISON_MESSAGE="$COMPARISON_MESSAGE; compared against baseline file '$BASELINE_TARGET'"
+          else
+            COMPARISON_MESSAGE="Compared against baseline file '$BASELINE_TARGET'"
+          fi
         fi
 
         # Generate report output
@@ -424,7 +428,7 @@ runs:
 
           if [ $DIFF_EXIT -ne 0 ]; then
             COMPARISON_STATUS="unavailable"
-            COMPARISON_MESSAGE="Baseline comparison failed (exit code $DIFF_EXIT)"
+            COMPARISON_MESSAGE="${COMPARISON_MESSAGE:+$COMPARISON_MESSAGE; }Baseline comparison failed (exit code $DIFF_EXIT)"
             if [ -n "$INPUT_OUTPUT" ] && [ -f "$INPUT_OUTPUT" ]; then
               echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
             else
