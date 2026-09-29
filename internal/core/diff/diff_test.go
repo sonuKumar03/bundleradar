@@ -143,3 +143,16 @@ func TestDiff_MicroDrift(t *testing.T) {
 		t.Fatalf("expected 200 bytes in micro-drift, got %d", d.MicroDriftBytes)
 	}
 }
+
+func TestDiffTotalBytesCountsJavaScriptChunksOnly(t *testing.T) {
+	b := core.NewBundle(core.Metadata{})
+	b.AddEntrypoint("main", core.Entrypoint{InitialBytes: 120, AsyncBytes: 80})
+	b.AddChunk(core.Chunk{ID: "main.js", SizeBytes: 100, Type: core.LoadTypeInitial})
+	b.AddChunk(core.Chunk{ID: "lazy.js", SizeBytes: 200, Type: core.LoadTypeAsync})
+	b.AddAsset(core.Asset{Path: "styles.css", SizeBytes: 20, MimeType: "text/css"})
+
+	d := diff.Calculate(nil, b, diff.Options{})
+	if d.Summary.HeadTotalBytes != 300 {
+		t.Fatalf("total JS bytes = %d, want 300", d.Summary.HeadTotalBytes)
+	}
+}

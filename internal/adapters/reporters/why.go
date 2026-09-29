@@ -97,7 +97,11 @@ func (r *WhyReporter) Render(ctx context.Context, w io.Writer, data any) error {
 				cc = &chunkContrib{}
 				contribs[cid] = cc
 			}
-			cc.bytes += m.SizeBytes
+			if size, ok := m.ChunkBytes[cid]; ok {
+				cc.bytes += size
+			} else {
+				cc.bytes += m.SizeBytes
+			}
 			if len(m.IngressPaths) > 0 && (len(cc.path) == 0 || len(m.IngressPaths) < len(cc.path)) {
 				cc.path = m.IngressPaths
 			}

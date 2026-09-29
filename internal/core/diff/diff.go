@@ -122,6 +122,13 @@ func Calculate(base, current *core.Bundle, opts Options) *BundleDiff {
 	baseLazy := base.TotalAsyncBytes()
 	currInit := current.TotalInitialBytes()
 	currLazy := current.TotalAsyncBytes()
+	var baseTotal, currTotal int64
+	for _, chunk := range base.Chunks {
+		baseTotal += chunk.SizeBytes
+	}
+	for _, chunk := range current.Chunks {
+		currTotal += chunk.SizeBytes
+	}
 
 	res.Summary = DiffSummary{
 		BaseInitialBytes:  baseInit,
@@ -132,9 +139,9 @@ func Calculate(base, current *core.Bundle, opts Options) *BundleDiff {
 		HeadLazyBytes:  currLazy,
 		LazyDeltaBytes: currLazy - baseLazy,
 
-		BaseTotalBytes:  baseInit + baseLazy,
-		HeadTotalBytes:  currInit + currLazy,
-		TotalDeltaBytes: (currInit + currLazy) - (baseInit + baseLazy),
+		BaseTotalBytes:  baseTotal,
+		HeadTotalBytes:  currTotal,
+		TotalDeltaBytes: currTotal - baseTotal,
 	}
 
 	// 2. Entrypoint deltas

@@ -79,3 +79,25 @@ func TestWhyReporter_NotFound(t *testing.T) {
 		t.Errorf("expected not-found message, got %q", buf.String())
 	}
 }
+
+func TestWhyReporterUsesPerChunkModuleBytes(t *testing.T) {
+	b := core.NewBundle(core.Metadata{})
+	b.AddChunk(core.Chunk{ID: "main.js", Name: "main.js", Type: core.LoadTypeInitial})
+	b.AddChunk(core.Chunk{ID: "lazy.js", Name: "lazy.js", Type: core.LoadTypeAsync})
+	b.AddModule(core.Module{
+		ID: "node_modules/lodash/index.js", Package: "lodash", SizeBytes: 1000,
+		ChunkIDs: []string{"main.js", "lazy.js"}, ChunkBytes: map[string]int64{"main.js": 100, "lazy.js": 900},
+	})
+
+	var buf bytes.Buffer
+	if err := reporters.NewWhy("lodash", "json").Render(context.Background(), &buf, b); err != nil {
+		t.Fatal(err)
+	}
+	var got reporters.WhyResult
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.InitialBytes != 100 || got.LazyBytes != 900 || got.TotalBytes != 1000 {
+		t.Fatalf("why bytes initial=%d lazy=%d total=%d, want 100/900/1000", got.InitialBytes, got.LazyBytes, got.TotalBytes)
+	}
+}

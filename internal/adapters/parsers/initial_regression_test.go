@@ -89,3 +89,23 @@ func TestAngularInitialFilesFollowIndexHTML(t *testing.T) {
 		t.Fatal("gzip sizes should use emitted files under browser/")
 	}
 }
+
+func TestAngularSharedModuleCountsBytesInEachOutput(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","inputs":{"node_modules/lodash/index.js":{"bytesInOutput":100}}},"lazy.js":{"bytes":900,"inputs":{"node_modules/lodash/index.js":{"bytesInOutput":900}}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mod := range bundle.Modules {
+		if mod.ID == "node_modules/lodash/index.js" {
+			if mod.SizeBytes != 1000 {
+				t.Fatalf("shared module bytes = %d, want 1000 across both outputs", mod.SizeBytes)
+			}
+			if mod.ChunkBytes["main.js"] != 100 || mod.ChunkBytes["lazy.js"] != 900 {
+				t.Fatalf("shared module chunk bytes = %v, want main=100 lazy=900", mod.ChunkBytes)
+			}
+			return
+		}
+	}
+	t.Fatal("shared lodash module missing from parsed bundle")
+}

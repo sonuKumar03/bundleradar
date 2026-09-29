@@ -47,11 +47,11 @@ type Entrypoint struct {
 
 // Chunk represents an emitted JavaScript or stylesheet file.
 type Chunk struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Path      string   `json:"path"`
-	SizeBytes int64    `json:"sizeBytes"`
-	GzipBytes int64    `json:"gzipBytes"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	SizeBytes int64  `json:"sizeBytes"`
+	GzipBytes int64  `json:"gzipBytes"`
 	// GzipEstimated is true when GzipBytes was ratio-approximated rather than
 	// measured by compressing the emitted file.
 	GzipEstimated bool     `json:"gzipEstimated,omitempty"`
@@ -62,14 +62,15 @@ type Chunk struct {
 
 // Module represents a source file or node_modules package compiled into a chunk.
 type Module struct {
-	ID           string   `json:"id"`
-	Package      string   `json:"package,omitempty"`
-	Version      string   `json:"version,omitempty"`
-	SizeBytes    int64    `json:"sizeBytes"`
-	GzipBytes    int64    `json:"gzipBytes"`
-	IsAppCode    bool     `json:"isAppCode"`
-	ChunkIDs     []string `json:"chunkIds"`
-	IngressPaths []string `json:"ingressPaths,omitempty"`
+	ID           string           `json:"id"`
+	Package      string           `json:"package,omitempty"`
+	Version      string           `json:"version,omitempty"`
+	SizeBytes    int64            `json:"sizeBytes"`
+	GzipBytes    int64            `json:"gzipBytes"`
+	IsAppCode    bool             `json:"isAppCode"`
+	ChunkIDs     []string         `json:"chunkIds"`
+	ChunkBytes   map[string]int64 `json:"chunkBytes,omitempty"`
+	IngressPaths []string         `json:"ingressPaths,omitempty"`
 }
 
 // Asset represents auxiliary compiled files (CSS, WASM, fonts, images).
@@ -85,10 +86,10 @@ type Asset struct {
 
 // PackageContribution summarizes a single npm package's impact across a bundle.
 type PackageContribution struct {
-	Name      string `json:"name"`
-	SizeBytes int64  `json:"sizeBytes"`
-	GzipBytes int64  `json:"gzipBytes"`
-	ModuleCount int  `json:"moduleCount"`
+	Name        string `json:"name"`
+	SizeBytes   int64  `json:"sizeBytes"`
+	GzipBytes   int64  `json:"gzipBytes"`
+	ModuleCount int    `json:"moduleCount"`
 }
 
 // NewBundle creates a new Bundle initialized with empty maps.
@@ -326,4 +327,3 @@ func (b *Bundle) ResolveEntrypoint(query string) (*Entrypoint, bool) {
 
 	return nil, false
 }
-
