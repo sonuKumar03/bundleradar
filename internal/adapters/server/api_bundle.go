@@ -163,25 +163,24 @@ func (s *Server) BundleToDTO(bundle *core.Bundle) *BundleDTO {
 		p.SizeBytes += mod.SizeBytes
 		p.GzipBytes += mod.GzipBytes
 
-		hasInitial := false
-		hasAsync := false
 		for _, cid := range mod.ChunkIDs {
 			if !slices.Contains(p.Chunks, cid) {
 				p.Chunks = append(p.Chunks, cid)
 			}
 			switch chunkTypeMap[cid] {
 			case core.LoadTypeInitial:
-				hasInitial = true
+				if size, ok := mod.ChunkBytes[cid]; ok {
+					p.InitialBytes += size
+				} else {
+					p.InitialBytes += mod.SizeBytes
+				}
 			case core.LoadTypeAsync:
-				hasAsync = true
+				if size, ok := mod.ChunkBytes[cid]; ok {
+					p.AsyncBytes += size
+				} else {
+					p.AsyncBytes += mod.SizeBytes
+				}
 			}
-		}
-
-		if hasInitial {
-			p.InitialBytes += mod.SizeBytes
-		}
-		if hasAsync {
-			p.AsyncBytes += mod.SizeBytes
 		}
 
 		if pkgName != "(application code)" && len(mod.IngressPaths) > 0 {

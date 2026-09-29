@@ -314,6 +314,9 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 			if existing, ok := seenModules[inPath]; ok {
 				existing.ChunkIDs = append(existing.ChunkIDs, baseName)
+				existing.ChunkBytes[baseName] = inBytes.BytesInOutput
+				existing.SizeBytes += inBytes.BytesInOutput
+				existing.GzipBytes += estimateGzip(inBytes.BytesInOutput, inPath)
 			} else {
 				pkgName := extractPackageName(inPath)
 				isApp := (pkgName == "")
@@ -328,6 +331,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 					GzipBytes:    estimateGzip(inBytes.BytesInOutput, inPath),
 					IsAppCode:    isApp,
 					ChunkIDs:     []string{baseName},
+					ChunkBytes:   map[string]int64{baseName: inBytes.BytesInOutput},
 					IngressPaths: p,
 				}
 				seenModules[inPath] = mod

@@ -91,6 +91,30 @@ func TestServer_GetBundle_Success(t *testing.T) {
 	}
 }
 
+func TestBundleToDTOUsesPerChunkModuleBytes(t *testing.T) {
+	srv, err := server.New(server.Config{Host: "127.0.0.1", Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := core.NewBundle(core.Metadata{})
+	b.AddChunk(core.Chunk{ID: "main.js", Name: "main.js", Type: core.LoadTypeInitial})
+	b.AddChunk(core.Chunk{ID: "lazy.js", Name: "lazy.js", Type: core.LoadTypeAsync})
+	b.AddModule(core.Module{
+		ID: "node_modules/lodash/index.js", Package: "lodash", SizeBytes: 1000,
+		ChunkIDs: []string{"main.js", "lazy.js"}, ChunkBytes: map[string]int64{"main.js": 100, "lazy.js": 900},
+	})
+
+	for _, pkg := range srv.BundleToDTO(b).TopPackages {
+		if pkg.Name == "lodash" {
+			if pkg.SizeBytes != 1000 || pkg.InitialBytes != 100 || pkg.AsyncBytes != 900 {
+				t.Fatalf("package bytes size=%d initial=%d async=%d, want 1000/100/900", pkg.SizeBytes, pkg.InitialBytes, pkg.AsyncBytes)
+			}
+			return
+		}
+	}
+	t.Fatal("lodash package missing from bundle DTO")
+}
+
 func TestServer_GetBundle_NotFound(t *testing.T) {
 	srv, err := server.New(server.Config{
 		Host: "127.0.0.1",
