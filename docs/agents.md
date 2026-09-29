@@ -83,9 +83,9 @@ The MCP server provides 4 typed tools formatted for LLM consumption:
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
 | `bundle_scan` | `path` (required), `dist`, `bundler`, `top` | Inspect bundle sizes, breakdown, and package dependencies. |
-| `bundle_diff` | `path` (required), `against` (required), `drift_threshold` | Compare against baseline with regression attribution. |
-| `bundle_gate` | `path` (required), `against`, `max_initial`, `max_total`, `max_initial_delta`, `forbid` (array) | Validate bundle sizes against policy budgets in CI. |
-| `workspace_summary`| `root` | Analyzes all applications and shared libraries across a workspace. |
+| `bundle_diff` | `path` (required), `against` (required), `drift_threshold` | Compare against a local stats/metafile/manifest file or BundleRadar scan JSON file. Git refs are not supported by MCP. |
+| `bundle_gate` | `path` (required), `against`, `max_initial`, `max_total`, `max_initial_delta`, `forbid` (array) | Validate bundle sizes against policy budgets in CI; `against` accepts a local baseline file, not a git ref. |
+| `workspace_summary`| `root` | Lists discovered application target names and stats/dist paths; it does not scan bundle contents. |
 
 ### Exposed MCP Resources
 

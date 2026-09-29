@@ -2,6 +2,7 @@ package mcp_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	mcpspec "github.com/mark3labs/mcp-go/mcp"
 	"github.com/sonuKumar03/bundleradar/internal/mcp"
+	"github.com/sonuKumar03/bundleradar/pkg/bundleradar"
 )
 
 func TestNewServer_Metadata(t *testing.T) {
@@ -70,6 +72,57 @@ func TestHandleScan(t *testing.T) {
 	text := res.Content[0].(mcpspec.TextContent).Text
 	if !strings.Contains(text, "entrypoints") {
 		t.Fatalf("expected entrypoints in output: %s", text)
+	}
+}
+
+func TestBaselineToolsAcceptBundleRadarScanJSON(t *testing.T) {
+	statsPath, err := filepath.Abs("../../testdata/minimal/stats.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := bundleradar.New().Scan(context.Background(), bundleradar.ScanOptions{StatsPath: statsPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselineJSON, err := json.Marshal(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselinePath := filepath.Join(t.TempDir(), "baseline.json")
+	if err := os.WriteFile(baselinePath, baselineJSON, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"bundle_diff", map[string]any{"path": statsPath, "against": baselinePath}},
+		{"bundle_gate", map[string]any{"path": statsPath, "against": baselinePath, "max_initial_delta": "0B"}},
+	} {
+		t.Run(tc.tool, func(t *testing.T) {
+			res, err := mcp.NewServer().GetTool(tc.tool).Handler(context.Background(), mcpspec.CallToolRequest{
+				Params: mcpspec.CallToolParams{Name: tc.tool, Arguments: tc.args},
+			})
+			if err != nil || res == nil || res.IsError {
+				t.Fatalf("expected scan JSON baseline to be accepted, result=%+v error=%v", res, err)
+			}
+		})
+	}
+}
+
+func TestHandleDiffRejectsInvalidDriftThreshold(t *testing.T) {
+	statsPath, err := filepath.Abs("../../testdata/minimal/stats.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := mcp.NewServer().GetTool("bundle_diff").Handler(context.Background(), mcpspec.CallToolRequest{
+		Params: mcpspec.CallToolParams{Name: "bundle_diff", Arguments: map[string]any{
+			"path": statsPath, "against": statsPath, "drift_threshold": "invalid",
+		}},
+	})
+	if err != nil || res == nil || !res.IsError {
+		t.Fatalf("expected invalid drift threshold error, result=%+v error=%v", res, err)
 	}
 }
 
