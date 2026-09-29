@@ -94,3 +94,12 @@ func TestPolicy_AllPassing(t *testing.T) {
 		t.Fatalf("expected policy to pass, but failed: %+v", res.Violations)
 	}
 }
+
+func TestPolicy_InitialDeltaRequiresDiff(t *testing.T) {
+	bundle := core.NewBundle(core.Metadata{})
+	limit := int64(0)
+	res := policy.Evaluate(bundle, nil, policy.Policy{MaxInitialDelta: &limit})
+	if res.Passed || len(res.Violations) != 1 || res.Violations[0].Rule != "BASELINE_REQUIRED" {
+		t.Fatalf("missing baseline result = %+v, want failed BASELINE_REQUIRED", res)
+	}
+}

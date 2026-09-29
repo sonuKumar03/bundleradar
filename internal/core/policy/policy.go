@@ -82,7 +82,14 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 	}
 
 	// 3. MaxInitialDelta regression check
-	if p.MaxInitialDelta != nil && d != nil {
+	if p.MaxInitialDelta != nil && d == nil {
+		res.Passed = false
+		res.Violations = append(res.Violations, Violation{
+			Severity: "error",
+			Rule:     "BASELINE_REQUIRED",
+			Message:  "Initial delta budget requires a baseline diff",
+		})
+	} else if p.MaxInitialDelta != nil {
 		limit := *p.MaxInitialDelta
 		for name, epDelta := range d.Entrypoints {
 			if epDelta.InitialDelta > limit {

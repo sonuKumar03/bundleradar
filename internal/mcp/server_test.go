@@ -71,3 +71,29 @@ func TestHandleScan(t *testing.T) {
 		t.Fatalf("expected entrypoints in output: %s", text)
 	}
 }
+
+func TestHandleGateRejectsUnevaluatedBudgets(t *testing.T) {
+	statsPath, _ := filepath.Abs("../../testdata/minimal/stats.json")
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"invalid budget", map[string]any{"path": statsPath, "max_initial": "bad"}},
+		{"unreadable baseline", map[string]any{"path": statsPath, "against": "/missing/stats.json", "max_initial_delta": "0B"}},
+		{"delta without baseline", map[string]any{"path": statsPath, "max_initial_delta": "0B"}},
+	}
+	tool := mcp.NewServer().GetTool("bundle_gate")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tool.Handler(context.Background(), mcpspec.CallToolRequest{
+				Params: mcpspec.CallToolParams{Name: "bundle_gate", Arguments: tc.args},
+			})
+			if err != nil {
+				t.Fatalf("call tool: %v", err)
+			}
+			if res == nil || !res.IsError {
+				t.Fatalf("expected gate input error, got %+v", res)
+			}
+		})
+	}
+}
