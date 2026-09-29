@@ -53,7 +53,8 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare a smaller total-size baseline
-        run: sed 's/"bytes": 1024/"bytes": 1000/' testdata/minimal/stats.json > testdata/minimal/baseline-stats.json
+        run: |
+          sed 's/"bytes": 1024/"bytes": 1000/' testdata/minimal/stats.json > testdata/minimal/baseline-stats.json
 
       - name: Set up Go
         uses: actions/setup-go@v7
