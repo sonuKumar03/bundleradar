@@ -2,8 +2,11 @@ package workspaces
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 )
@@ -33,22 +36,73 @@ func (r *NxResolver) Resolve(ctx context.Context, root string) ([]core.Target, e
 		if !entry.IsDir() {
 			continue
 		}
-		name := entry.Name()
-		appPath := filepath.Join(appsDir, name)
+		dirName := entry.Name()
+		name := dirName
+		appPath := filepath.Join(appsDir, dirName)
+		outputPath := ""
+		projectData, err := os.ReadFile(filepath.Join(appPath, "project.json"))
+		if err == nil {
+			var project struct {
+				Name        string `json:"name"`
+				ProjectType string `json:"projectType"`
+				Targets     map[string]struct {
+					Options struct {
+						OutputPath string `json:"outputPath"`
+					} `json:"options"`
+					DefaultConfiguration string `json:"defaultConfiguration"`
+					Configurations       map[string]struct {
+						OutputPath string `json:"outputPath"`
+					} `json:"configurations"`
+				} `json:"targets"`
+			}
+			if err := json.Unmarshal(projectData, &project); err != nil {
+				return nil, fmt.Errorf("parse Nx project config %q: %w", filepath.Join(appPath, "project.json"), err)
+			}
+			if project.ProjectType == "library" {
+				continue
+			}
+			if project.Name != "" {
+				name = project.Name
+			}
+			if build, ok := project.Targets["build"]; ok {
+				outputPath = build.Options.OutputPath
+				if config, ok := build.Configurations[build.DefaultConfiguration]; ok && config.OutputPath != "" {
+					outputPath = config.OutputPath
+				}
+			}
+			outputPath = strings.ReplaceAll(outputPath, "{workspaceRoot}", "")
+			outputPath = strings.ReplaceAll(outputPath, "{projectRoot}", filepath.Join("apps", dirName))
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
 
-		// Look for standard dist or mock stats
-		statsCandidates := []string{
-			filepath.Join(root, "dist", "apps", name, "stats.json"),
-			filepath.Join(root, "dist", "apps", name, "browser", "stats.json"),
-			filepath.Join(root, "dist", "apps", name, "metafile.json"),
-			filepath.Join(root, "dist", "apps", name, "manifest.json"),
-			filepath.Join(root, "dist", "apps", name, ".vite", "manifest.json"),
+		// Look for the configured output first, then conventional layouts.
+		statsCandidates := []string{}
+		if outputPath != "" {
+			outputDir := outputPath
+			if !filepath.IsAbs(outputDir) {
+				outputDir = filepath.Join(root, outputDir)
+			}
+			statsCandidates = append(statsCandidates,
+				filepath.Join(outputDir, "stats.json"),
+				filepath.Join(outputDir, "browser", "stats.json"),
+				filepath.Join(outputDir, "metafile.json"),
+				filepath.Join(outputDir, "manifest.json"),
+				filepath.Join(outputDir, ".vite", "manifest.json"),
+			)
+		}
+		statsCandidates = append(statsCandidates,
+			filepath.Join(root, "dist", "apps", dirName, "stats.json"),
+			filepath.Join(root, "dist", "apps", dirName, "browser", "stats.json"),
+			filepath.Join(root, "dist", "apps", dirName, "metafile.json"),
+			filepath.Join(root, "dist", "apps", dirName, "manifest.json"),
+			filepath.Join(root, "dist", "apps", dirName, ".vite", "manifest.json"),
 			filepath.Join(appPath, "dist", "stats.json"),
 			filepath.Join(appPath, "stats.json"),
 			filepath.Join(appPath, "dist", "metafile.json"),
 			filepath.Join(appPath, "dist", "manifest.json"),
 			filepath.Join(appPath, "dist", ".vite", "manifest.json"),
-		}
+		)
 
 		foundStats := ""
 		foundDist := ""
@@ -66,8 +120,16 @@ func (r *NxResolver) Resolve(ctx context.Context, root string) ([]core.Target, e
 
 		if foundStats == "" {
 			// Even if unbuilt, record project target
-			foundStats = filepath.Join(root, "dist", "apps", name, "stats.json")
-			foundDist = filepath.Join(root, "dist", "apps", name, "browser")
+			if outputPath != "" {
+				if !filepath.IsAbs(outputPath) {
+					outputPath = filepath.Join(root, outputPath)
+				}
+				foundStats = filepath.Join(outputPath, "stats.json")
+				foundDist = filepath.Join(outputPath, "browser")
+			} else {
+				foundStats = filepath.Join(root, "dist", "apps", dirName, "stats.json")
+				foundDist = filepath.Join(root, "dist", "apps", dirName, "browser")
+			}
 		}
 
 		targets = append(targets, core.Target{

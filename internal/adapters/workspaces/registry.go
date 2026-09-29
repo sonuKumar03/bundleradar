@@ -3,6 +3,8 @@ package workspaces
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 )
@@ -35,5 +37,8 @@ func (r *Registry) Resolve(ctx context.Context, root string) ([]core.Target, err
 			return res.Resolve(ctx, root)
 		}
 	}
-	return nil, fmt.Errorf("no workspace layout detected in %q", root)
+	if _, err := os.Stat(filepath.Join(root, "angular.json")); err == nil {
+		return nil, fmt.Errorf("Angular CLI workspace detected, but automatic project discovery is unsupported; pass explicit targets with --app NAME=STATS[:DIST]")
+	}
+	return nil, fmt.Errorf("no supported workspace layout detected in %q; pass explicit targets with --app NAME=STATS[:DIST]", root)
 }
