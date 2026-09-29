@@ -1020,44 +1020,44 @@ function renderBundle(data) {
     initPctEl.innerText = `${pct}%`;
   }
 
-  // Health Status Badge & Budget comparison
-  const budget = 500 * 1024;
+  // Initial-size heuristic reference, not a project policy budget.
+  const heuristicThreshold = 500 * 1024;
   const statusBadge = document.getElementById('health-status-badge');
   const healthMeter = document.getElementById('health-meter');
   const healthDesc = document.getElementById('health-description');
 
-  if (initialBytes > budget * 2) {
+  if (initialBytes > heuristicThreshold * 2) {
     if (statusBadge) {
-      statusBadge.innerText = 'CRITICAL BLOAT';
+      statusBadge.innerText = 'FAR ABOVE HEURISTIC';
       statusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-semibold bg-[#f85149]/15 text-[#f85149] border border-[#f85149]/30';
     }
     if (healthMeter) {
       healthMeter.className = 'bg-[#f85149] h-full rounded-full transition-all duration-500';
       healthMeter.style.width = '100%';
     }
-    const overPct = (((initialBytes - budget) / budget) * 100).toFixed(0);
-    if (healthDesc) healthDesc.innerText = `Exceeds 500 KB budget by +${formatBytes(initialBytes - budget)} (+${overPct}%). Initial payload blocks fast first paint.`;
-  } else if (initialBytes > budget) {
+    const overPct = (((initialBytes - heuristicThreshold) / heuristicThreshold) * 100).toFixed(0);
+    if (healthDesc) healthDesc.innerText = `Initial payload is +${formatBytes(initialBytes - heuristicThreshold)} (+${overPct}%) above the 500 KB heuristic. Check the configured gate for your project's limit.`;
+  } else if (initialBytes > heuristicThreshold) {
     if (statusBadge) {
-      statusBadge.innerText = 'OVER BUDGET';
+      statusBadge.innerText = 'ABOVE HEURISTIC';
       statusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-semibold bg-[#d29922]/15 text-[#d29922] border border-[#d29922]/30';
     }
     if (healthMeter) {
       healthMeter.className = 'bg-[#d29922] h-full rounded-full transition-all duration-500';
       healthMeter.style.width = '75%';
     }
-    const overPct = (((initialBytes - budget) / budget) * 100).toFixed(0);
-    if (healthDesc) healthDesc.innerText = `Exceeds 500 KB budget by +${formatBytes(initialBytes - budget)} (+${overPct}%).`;
+    const overPct = (((initialBytes - heuristicThreshold) / heuristicThreshold) * 100).toFixed(0);
+    if (healthDesc) healthDesc.innerText = `Initial payload is +${formatBytes(initialBytes - heuristicThreshold)} (+${overPct}%) above the 500 KB heuristic. Check the configured gate for your project's limit.`;
   } else {
     if (statusBadge) {
-      statusBadge.innerText = 'OPTIMAL HEALTH';
+      statusBadge.innerText = 'WITHIN HEURISTIC';
       statusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-semibold bg-[#3fb950]/15 text-[#3fb950] border border-[#3fb950]/30';
     }
     if (healthMeter) {
       healthMeter.className = 'bg-[#3fb950] h-full rounded-full transition-all duration-500';
-      healthMeter.style.width = `${Math.round((initialBytes / budget) * 100)}%`;
+      healthMeter.style.width = `${Math.round((initialBytes / heuristicThreshold) * 100)}%`;
     }
-    if (healthDesc) healthDesc.innerText = `Initial bootstrap payload is within healthy budgets (${formatBytes(initialBytes)} / 500 KB).`;
+    if (healthDesc) healthDesc.innerText = `Initial payload is within the 500 KB heuristic (${formatBytes(initialBytes)}). Check the configured gate for your project's limit.`;
   }
 
   // Populate Chunk Select options
