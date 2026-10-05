@@ -124,6 +124,42 @@ func TestPolicy_LazyAndTotalDeltaBudgets(t *testing.T) {
 	}
 }
 
+func TestPolicy_CSSAndAssetBudgets(t *testing.T) {
+	bundle := core.NewBundle(core.Metadata{})
+	// CSS emitted as a chunk (esbuild style)
+	bundle.AddChunk(core.Chunk{ID: "styles.css", Path: "assets/styles.css", SizeBytes: 70000})
+	// CSS emitted as an asset (angular/vite style)
+	bundle.AddAsset(core.Asset{Path: "global.css", SizeBytes: 30000, MimeType: "text/css"})
+	// Non-CSS assets (images/fonts/media)
+	bundle.AddAsset(core.Asset{Path: "images/logo.png", SizeBytes: 200000, MimeType: "image/png"})
+
+	cssLimit, assetLimit := int64(50000), int64(100000)
+	res := policy.Evaluate(bundle, nil, policy.Policy{MaxCSS: &cssLimit, MaxAssets: &assetLimit})
+	if res.Passed || len(res.Violations) != 2 {
+		t.Fatalf("asset budget evaluation = %+v, want CSS and asset violations", res)
+	}
+	got := map[string]bool{}
+	for _, v := range res.Violations {
+		got[v.Rule] = true
+	}
+	if !got["MAX_CSS_SIZE"] || !got["MAX_ASSETS_SIZE"] {
+		t.Fatalf("asset budget violations = %+v, want MAX_CSS_SIZE and MAX_ASSETS_SIZE", res.Violations)
+	}
+}
+
+func TestPolicy_CSSAndAssetBudgetsPassing(t *testing.T) {
+	bundle := core.NewBundle(core.Metadata{})
+	bundle.AddChunk(core.Chunk{ID: "styles.css", Path: "assets/styles.css", SizeBytes: 1000})
+	bundle.AddAsset(core.Asset{Path: "global.css", SizeBytes: 500, MimeType: "text/css"})
+	bundle.AddAsset(core.Asset{Path: "images/logo.png", SizeBytes: 2000, MimeType: "image/png"})
+
+	cssLimit, assetLimit := int64(2000), int64(5000)
+	res := policy.Evaluate(bundle, nil, policy.Policy{MaxCSS: &cssLimit, MaxAssets: &assetLimit})
+	if !res.Passed {
+		t.Fatalf("asset budgets within limits should pass, failed: %+v", res.Violations)
+	}
+}
+
 func TestPolicyWarnsWhenDuplicateVersionEvidenceIsMissing(t *testing.T) {
 	bundle := core.NewBundle(core.Metadata{})
 	bundle.AddModule(core.Module{ID: "node_modules/pkg/index.js", Package: "pkg"})

@@ -84,7 +84,7 @@ The MCP server provides 4 typed tools formatted for LLM consumption:
 | :--- | :--- | :--- |
 | `bundle_scan` | `path` (required), `dist`, `bundler`, `top` | Inspect bundle sizes, breakdown, and package dependencies. |
 | `bundle_diff` | `path` (required), `against` (required), `drift_threshold` | Compare against a local stats/metafile/manifest file or BundleRadar scan JSON file. Git refs are not supported by MCP. |
-| `bundle_gate` | `path` (required), `against`, `max_initial`, `max_total`, `max_initial_delta`, `forbid` (array) | Validate bundle sizes against policy budgets in CI; `against` accepts a local baseline file, not a git ref. |
+| `bundle_gate` | `path` (required), `against`, `max_initial`, `max_total`, `max_css`, `max_assets`, `max_initial_delta`, `forbid` (array) | Validate bundle sizes, CSS/asset budgets, and architecture rules against policy budgets in CI; `against` accepts a local baseline file, not a git ref. |
 | `workspace_summary`| `root` | Lists discovered application target names and stats/dist paths; it does not scan bundle contents. |
 
 ### Exposed MCP Resources
@@ -158,6 +158,9 @@ Inspect the output to see size deltas.
 ```sh
 # Fails with exit code 1 if initial JS grew
 bundleradar gate stats.json --against baseline.json --max-initial-delta 0B
+
+# Fail if total CSS or non-JS asset bytes exceed budgets
+bundleradar gate stats.json --max-css 100KB --max-assets 2MB
 ```
 
 ---

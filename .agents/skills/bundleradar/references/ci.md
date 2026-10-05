@@ -9,6 +9,7 @@ bundleradar diff dist/my-app/stats.json --against main -f json
 
 # Enforce budget limits and regression delta gates
 bundleradar gate dist/my-app/stats.json --max-initial 250KB -f json
+bundleradar gate dist/my-app/stats.json --max-css 100KB --max-assets 2MB -f json
 bundleradar gate dist/my-app/stats.json --against main --max-initial-delta 0B -f json
 ```
 

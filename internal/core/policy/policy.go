@@ -15,6 +15,8 @@ type Policy struct {
 	MaxTotal            *int64   `json:"maxTotal,omitempty"`
 	MaxInitialDelta     *int64   `json:"maxInitialDelta,omitempty"`
 	MaxTotalDelta       *int64   `json:"maxTotalDelta,omitempty"`
+	MaxCSS              *int64   `json:"maxCss,omitempty"`
+	MaxAssets           *int64   `json:"maxAssets,omitempty"`
 	ForbiddenPkgs       []string `json:"forbiddenPkgs,omitempty"`
 	DetectDuplicatePkgs bool     `json:"detectDuplicatePkgs"`
 }
@@ -96,6 +98,34 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 				Severity: "error",
 				Rule:     "MAX_LAZY_SIZE",
 				Message:  fmt.Sprintf("Total lazy JS size %d bytes exceeds budget limit %d bytes", actual, limit),
+				Actual:   actual,
+				Limit:    limit,
+			})
+		}
+	}
+	if p.MaxCSS != nil {
+		limit := *p.MaxCSS
+		actual := bundle.TotalCSSBytes()
+		if actual > limit {
+			res.Passed = false
+			res.Violations = append(res.Violations, Violation{
+				Severity: "error",
+				Rule:     "MAX_CSS_SIZE",
+				Message:  fmt.Sprintf("Total CSS size %d bytes exceeds budget limit %d bytes", actual, limit),
+				Actual:   actual,
+				Limit:    limit,
+			})
+		}
+	}
+	if p.MaxAssets != nil {
+		limit := *p.MaxAssets
+		actual := bundle.TotalAssetsBytes()
+		if actual > limit {
+			res.Passed = false
+			res.Violations = append(res.Violations, Violation{
+				Severity: "error",
+				Rule:     "MAX_ASSETS_SIZE",
+				Message:  fmt.Sprintf("Total asset size %d bytes (images, fonts, media) exceeds budget limit %d bytes", actual, limit),
 				Actual:   actual,
 				Limit:    limit,
 			})

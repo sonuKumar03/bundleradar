@@ -214,6 +214,9 @@ Validate bundle sizes, regressions, and architecture rules against policy budget
 # Enforce initial and total JS size limits
 bundleradar gate dist/my-app/stats.json --max-initial 250kb --max-total 1.5mb
 
+# Enforce CSS and non-JS asset (images/fonts/media) budgets
+bundleradar gate dist/my-app/stats.json --max-css 100kb --max-assets 2mb
+
 # Enforce regression limits against a baseline file or git ref
 bundleradar gate dist/my-app/stats.json --against main --max-initial-delta 0kb
 
@@ -251,7 +254,7 @@ bundleradar mcp
 **Exposed MCP Tools:**
 - `bundle_scan`: Analyze bundle sizes, entrypoints, and top contributing npm packages.
 - `bundle_diff`: Compare against a local stats/metafile/manifest file or BundleRadar scan JSON file. MCP tools do not resolve git refs.
-- `bundle_gate`: Validate bundle sizes, regressions, and architecture rules against policy budgets; `against` accepts a local baseline file, not a git ref.
+- `bundle_gate`: Validate bundle sizes, regressions, CSS/asset budgets, and architecture rules against policy budgets; `against` accepts a local baseline file, not a git ref.
 - `workspace_summary`: List discovered application targets and their stats/dist paths. It does not scan bundle contents.
 
 **Exposed MCP Resource:**
@@ -343,6 +346,8 @@ Persist size budgets and disallowed-package rules at the root of your project. `
 budgets:
   initial_js_max: 250kb
   total_max: 1.5mb
+  max_css: 100kb
+  max_assets: 2mb
 
 rules:
   disallow_packages:

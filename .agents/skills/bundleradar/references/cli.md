@@ -25,6 +25,7 @@ bundleradar diff dist/my-app/stats.json --against main --drift-threshold 1KB -f 
 
 # Gate bundle budgets and architecture rules in CI
 bundleradar gate dist/my-app/stats.json --max-initial 250KB --max-total 1MB -f json
+bundleradar gate dist/my-app/stats.json --max-css 100KB --max-assets 2MB -f json
 bundleradar gate dist/my-app/stats.json --against main --max-initial-delta 10KB -f json
 bundleradar gate dist/my-app/stats.json --forbid moment,lodash -f json
 

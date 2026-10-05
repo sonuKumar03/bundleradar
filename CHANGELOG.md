@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CSS and non-JS asset budget gating: `gate --max-css`/`--max-assets`, YAML
+  `budgets.max_css`/`budgets.max_assets`, and MCP `bundle_gate` `max_css`/
+  `max_assets` params. CSS is counted across CSS chunks (esbuild) and CSS
+  assets (Angular/Vite); new policy rules `MAX_CSS_SIZE` and `MAX_ASSETS_SIZE`.
+
 ## [2.1.0] - 2026-09-29
 
 ### Changed

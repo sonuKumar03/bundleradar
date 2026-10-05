@@ -78,6 +78,8 @@ func registerTools(s *server.MCPServer) {
 		mcpspec.WithString("max_total", mcpspec.Description("Maximum total JS budget (e.g. '1.5MB').")),
 		mcpspec.WithString("max_initial_delta", mcpspec.Description("Maximum allowed increase vs baseline (e.g. '10KB', '0B').")),
 		mcpspec.WithString("max_total_delta", mcpspec.Description("Maximum allowed total JS increase vs baseline.")),
+		mcpspec.WithString("max_css", mcpspec.Description("Maximum total CSS budget (e.g. '100KB', '1MB').")),
+		mcpspec.WithString("max_assets", mcpspec.Description("Maximum total asset budget for images, fonts and media (e.g. '2MB').")),
 		mcpspec.WithArray("forbid", mcpspec.WithStringItems(), mcpspec.Description("List of package names forbidden from appearing in bundle.")),
 	), handleGate)
 
@@ -189,6 +191,8 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	maxTotal := req.GetString("max_total", "")
 	maxInitialDelta := req.GetString("max_initial_delta", "")
 	maxTotalDelta := req.GetString("max_total_delta", "")
+	maxCSS := req.GetString("max_css", "")
+	maxAssets := req.GetString("max_assets", "")
 	forbidList := req.GetStringSlice("forbid", nil)
 	if (maxInitialDelta != "" || maxTotalDelta != "") && against == "" {
 		return mcpspec.NewToolResultError("delta budgets require a readable baseline in against"), nil
@@ -251,6 +255,20 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_total_delta: %v", err)), nil
 		}
 		pol.MaxTotalDelta = &val
+	}
+	if maxCSS != "" {
+		val, err := bundleradar.ParseBytes(maxCSS)
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_css: %v", err)), nil
+		}
+		pol.MaxCSS = &val
+	}
+	if maxAssets != "" {
+		val, err := bundleradar.ParseBytes(maxAssets)
+		if err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_assets: %v", err)), nil
+		}
+		pol.MaxAssets = &val
 	}
 	if args, ok := req.Params.Arguments.(map[string]any); ok {
 		if _, explicit := args["forbid"]; explicit {

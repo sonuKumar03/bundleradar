@@ -152,6 +152,38 @@ func TestHandleGateRejectsUnevaluatedBudgets(t *testing.T) {
 	}
 }
 
+func TestHandleGateCSSAndAssetParams(t *testing.T) {
+	statsPath := filepath.Join(t.TempDir(), "stats.json")
+	data := `{"inputs":{"src/styles.css":{"bytes":70000,"imports":[]},"images/logo.png":{"bytes":200000,"imports":[]}},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","imports":[],"inputs":{"src/main.ts":{"bytesInOutput":100}}},"styles.css":{"bytes":70000,"imports":[],"inputs":{"src/styles.css":{"bytesInOutput":70000}}},"images/logo.png":{"bytes":200000,"imports":[],"inputs":{"images/logo.png":{"bytesInOutput":200000}}}}}`
+	if err := os.WriteFile(statsPath, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	tool := mcp.NewServer().GetTool("bundle_gate")
+	call := func(args map[string]any) string {
+		t.Helper()
+		res, err := tool.Handler(context.Background(), mcpspec.CallToolRequest{
+			Params: mcpspec.CallToolParams{Name: "bundle_gate", Arguments: args},
+		})
+		if err != nil || res == nil {
+			t.Fatalf("call tool: result=%+v error=%v", res, err)
+		}
+		if res.IsError {
+			t.Fatalf("invalid gate response: %+v", res)
+		}
+		return res.Content[0].(mcpspec.TextContent).Text
+	}
+
+	cssResult := call(map[string]any{"path": statsPath, "max_css": "1B"})
+	if !strings.Contains(cssResult, `"rule": "MAX_CSS_SIZE"`) {
+		t.Fatalf("max_css did not trigger violation: %s", cssResult)
+	}
+	assetsResult := call(map[string]any{"path": statsPath, "max_assets": "1B"})
+	if !strings.Contains(assetsResult, `"rule": "MAX_ASSETS_SIZE"`) {
+		t.Fatalf("max_assets did not trigger violation: %s", assetsResult)
+	}
+}
+
 func TestHandleGateLoadsConfigAndAllowsExplicitOverride(t *testing.T) {
 	statsPath, err := filepath.Abs("../../testdata/minimal/stats.json")
 	if err != nil {

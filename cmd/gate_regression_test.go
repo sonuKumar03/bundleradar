@@ -80,6 +80,37 @@ func TestGateDeltaNeedsBaseline(t *testing.T) {
 	}
 }
 
+func gateStatsWithCSSAndAssets(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "stats.json")
+	data := `{"inputs":{"src/styles.css":{"bytes":70000,"imports":[]},"images/logo.png":{"bytes":200000,"imports":[]}},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","imports":[],"inputs":{"src/main.ts":{"bytesInOutput":100}}},"styles.css":{"bytes":70000,"imports":[],"inputs":{"src/styles.css":{"bytesInOutput":70000}}},"images/logo.png":{"bytes":200000,"imports":[],"inputs":{"images/logo.png":{"bytesInOutput":200000}}}}}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestGateCSSAndAssetBudgets(t *testing.T) {
+	stats := gateStatsWithCSSAndAssets(t)
+	var out, errs bytes.Buffer
+	code := cmd.Execute([]string{"gate", stats, "--bundler", "esbuild", "--max-css", "50KB", "-f", "json"}, &out, &errs)
+	if code != cmd.ExitCodePolicyViolation || !strings.Contains(out.String(), "MAX_CSS_SIZE") {
+		t.Fatalf("css limit: code=%d output=%s error=%s", code, out.String(), errs.String())
+	}
+	out.Reset()
+	errs.Reset()
+	code = cmd.Execute([]string{"gate", stats, "--bundler", "esbuild", "--max-assets", "100KB", "-f", "json"}, &out, &errs)
+	if code != cmd.ExitCodePolicyViolation || !strings.Contains(out.String(), "MAX_ASSETS_SIZE") {
+		t.Fatalf("assets limit: code=%d output=%s error=%s", code, out.String(), errs.String())
+	}
+	out.Reset()
+	errs.Reset()
+	code = cmd.Execute([]string{"gate", stats, "--bundler", "esbuild", "--max-css", "1MB", "--max-assets", "1MB", "-f", "json"}, &out, &errs)
+	if code != cmd.ExitCodeSuccess {
+		t.Fatalf("asset budgets within limits should pass: code=%d output=%s error=%s", code, out.String(), errs.String())
+	}
+}
+
 func TestGateLazyAndTotalDeltaBudgets(t *testing.T) {
 	current, baseline := gateStatsWithLazyBytes(t, 200), gateStatsWithLazyBytes(t, 100)
 	var out, errs bytes.Buffer

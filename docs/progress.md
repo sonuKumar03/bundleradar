@@ -9,6 +9,10 @@ implementation and verification; record remaining limitations separately.
 
 BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.1.0`, which adds the live web UI Studio and ships hardened parsers, MCP contracts, and release automation.
 
+## Post-v2.1.0 (unreleased)
+
+- [x] CSS and non-JS asset budget gating: `gate --max-css`/`--max-assets` flags, YAML `budgets.max_css`/`budgets.max_assets`, MCP `bundle_gate` `max_css`/`max_assets` params, and `MAX_CSS_SIZE`/`MAX_ASSETS_SIZE` policy rules. CSS is counted across CSS chunks (esbuild) and CSS assets (Angular/Vite); asset budgets cover images/fonts/media only.
+
 ## v2.1.0
 
 - [x] `bundleradar ui` command (and `scan --ui`) serving a live web Studio with embedded static assets (`go:embed`), real-time file watcher with SSE live stream, build checkpoints API, and `/api/bundle` ingress attribution.

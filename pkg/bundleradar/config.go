@@ -21,6 +21,8 @@ type ConfigBudgets struct {
 	InitialJSMax    string `yaml:"initial_js_max,omitempty"`
 	TotalMax        string `yaml:"total_max,omitempty"`
 	MaxInitialDelta string `yaml:"max_initial_delta,omitempty"`
+	MaxCSS          string `yaml:"max_css,omitempty"`
+	MaxAssets       string `yaml:"max_assets,omitempty"`
 }
 
 // ConfigRules holds architectural lint rules for bundled packages.
@@ -57,6 +59,22 @@ func (c *Config) ToPolicy() (Policy, error) {
 			return pol, fmt.Errorf("config max_initial_delta: %w", err)
 		}
 		pol.MaxInitialDelta = &val
+	}
+
+	if c.Budgets.MaxCSS != "" {
+		val, err := ParseBytes(c.Budgets.MaxCSS)
+		if err != nil {
+			return pol, fmt.Errorf("config max_css: %w", err)
+		}
+		pol.MaxCSS = &val
+	}
+
+	if c.Budgets.MaxAssets != "" {
+		val, err := ParseBytes(c.Budgets.MaxAssets)
+		if err != nil {
+			return pol, fmt.Errorf("config max_assets: %w", err)
+		}
+		pol.MaxAssets = &val
 	}
 
 	for _, p := range c.Rules.DisallowPackages {

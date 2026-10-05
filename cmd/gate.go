@@ -26,6 +26,8 @@ func newGateCommand() *cobra.Command {
 		maxTotal            string
 		maxInitialDelta     string
 		maxTotalDelta       string
+		maxCSS              string
+		maxAssets           string
 		forbid              []string
 		detectDuplicatePkgs bool
 		entry               string
@@ -122,6 +124,20 @@ func newGateCommand() *cobra.Command {
 				}
 				pol.MaxTotalDelta = &val
 			}
+			if maxCSS != "" {
+				val, err := bundleradar.ParseBytes(maxCSS)
+				if err != nil {
+					return &UsageError{Err: fmt.Errorf("invalid --max-css: %w", err)}
+				}
+				pol.MaxCSS = &val
+			}
+			if maxAssets != "" {
+				val, err := bundleradar.ParseBytes(maxAssets)
+				if err != nil {
+					return &UsageError{Err: fmt.Errorf("invalid --max-assets: %w", err)}
+				}
+				pol.MaxAssets = &val
+			}
 			if c.Flags().Changed("forbid") {
 				pol.ForbiddenPkgs = forbid
 			}
@@ -168,6 +184,8 @@ func newGateCommand() *cobra.Command {
 	c.Flags().StringVar(&maxTotal, "max-total", "", "Maximum allowed total bundle size (e.g. 1.5MB)")
 	c.Flags().StringVar(&maxInitialDelta, "max-initial-delta", "", "Maximum allowed increase vs baseline")
 	c.Flags().StringVar(&maxTotalDelta, "max-total-delta", "", "Maximum allowed total JS increase vs baseline")
+	c.Flags().StringVar(&maxCSS, "max-css", "", "Maximum allowed total CSS size (e.g. 100KB, 1MB)")
+	c.Flags().StringVar(&maxAssets, "max-assets", "", "Maximum allowed total asset size for images, fonts and media (e.g. 2MB)")
 	c.Flags().StringSliceVar(&forbid, "forbid", nil, "Forbidden package names (e.g. moment,lodash)")
 	c.Flags().BoolVar(&detectDuplicatePkgs, "detect-duplicate-pkgs", true, "Fail if multiple versions of the same package are bundled")
 	c.Flags().StringVarP(&entry, "entry", "e", "", "Scope budget checks to a specific entrypoint")

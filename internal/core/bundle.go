@@ -158,6 +158,44 @@ func (b *Bundle) TotalAppCodeBytes() int64 {
 	return total
 }
 
+// TotalCSSBytes returns the sum of CSS bytes across CSS chunks (esbuild family)
+// and CSS-classified assets (angular/vite style).
+func (b *Bundle) TotalCSSBytes() int64 {
+	var total int64
+	for _, c := range b.Chunks {
+		if isCSSPath(c.Path) {
+			total += c.SizeBytes
+		}
+	}
+	for _, a := range b.Assets {
+		if isCSSAsset(a) {
+			total += a.SizeBytes
+		}
+	}
+	return total
+}
+
+// TotalAssetsBytes returns the sum of non-CSS asset bytes (images, fonts, media).
+func (b *Bundle) TotalAssetsBytes() int64 {
+	var total int64
+	for _, a := range b.Assets {
+		if !isCSSAsset(a) {
+			total += a.SizeBytes
+		}
+	}
+	return total
+}
+
+// isCSSAsset reports whether an asset is a stylesheet, by explicit MIME type
+// or by .css extension.
+func isCSSAsset(a Asset) bool {
+	return strings.EqualFold(a.MimeType, "text/css") || isCSSPath(a.Path)
+}
+
+func isCSSPath(p string) bool {
+	return strings.EqualFold(filepath.Ext(p), ".css")
+}
+
 // FindChunk retrieves a chunk by its ID.
 func (b *Bundle) FindChunk(id string) (Chunk, bool) {
 	b.ensureChunkIndex()
