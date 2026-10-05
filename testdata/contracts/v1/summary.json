@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1",
-  "toolVersion": "2.1.0",
+  "toolVersion": "2.2.0",
   "command": "summary",
   "summary": {
     "initialJs": 1024,

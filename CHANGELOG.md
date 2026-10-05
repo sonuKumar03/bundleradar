@@ -7,12 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-05
+
 ### Added
 
 - CSS and non-JS asset budget gating: `gate --max-css`/`--max-assets`, YAML
-  `budgets.max_css`/`budgets.max_assets`, and MCP `bundle_gate` `max_css`/
-  `max_assets` params. CSS is counted across CSS chunks (esbuild) and CSS
-  assets (Angular/Vite); new policy rules `MAX_CSS_SIZE` and `MAX_ASSETS_SIZE`.
+  `budgets.max_css`/`budgets.max_assets`, MCP `bundle_gate` `max_css`/
+  `max_assets` params, and GitHub Action `max-css`/`max-assets` inputs. CSS is
+  counted across CSS chunks (esbuild) and CSS assets (Angular/Vite); new policy
+  rules `MAX_CSS_SIZE` and `MAX_ASSETS_SIZE`.
+
+### Fixed
+
+- Angular: classify initial files from emitted HTML, trace lazy import ingress
+  chains, and align JavaScript size attribution across entrypoints.
+- MCP: fail closed on gate input errors, align baseline contracts, and enforce
+  lazy/total-delta budgets.
+- Action: apply config policies, auto-detect stats safely, select artifact
+  baselines by branch run, compare multi-app targets to the base ref, resolve
+  Nx project metadata, and report incomplete workspace scans.
+- Studio: label the size-threshold indicator as a heuristic.
 
 ## [2.1.0] - 2026-09-29
 
@@ -82,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/sonuKumar03/bundleradar/compare/v0.6.0...v2.0.0
 [0.6.0]: https://github.com/sonuKumar03/bundleradar/compare/v0.5.0...v0.6.0

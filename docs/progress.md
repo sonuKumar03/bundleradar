@@ -1,17 +1,18 @@
 # bundleradar progress
 
-Last updated: 2026-09-29
+Last updated: 2026-10-05
 
 Update this document when a milestone changes. Mark work complete only after
 implementation and verification; record remaining limitations separately.
 
 ## Current status
 
-BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.1.0`, which adds the live web UI Studio and ships hardened parsers, MCP contracts, and release automation.
+BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.2.0`, which adds CSS/non-JS asset budget gating end-to-end (CLI, YAML, MCP, GitHub Action) and ships a post-v2.1.0 hardening sprint across Angular attribution, MCP contracts, Action baselines, and the Studio.
 
-## Post-v2.1.0 (unreleased)
+## v2.2.0
 
-- [x] CSS and non-JS asset budget gating: `gate --max-css`/`--max-assets` flags, YAML `budgets.max_css`/`budgets.max_assets`, MCP `bundle_gate` `max_css`/`max_assets` params, and `MAX_CSS_SIZE`/`MAX_ASSETS_SIZE` policy rules. CSS is counted across CSS chunks (esbuild) and CSS assets (Angular/Vite); asset budgets cover images/fonts/media only.
+- [x] CSS and non-JS asset budget gating: `gate --max-css`/`--max-assets` flags, YAML `budgets.max_css`/`budgets.max_assets`, MCP `bundle_gate` `max_css`/`max_assets` params, and GitHub Action `max-css`/`max-assets` inputs, with `MAX_CSS_SIZE`/`MAX_ASSETS_SIZE` policy rules. CSS is counted across CSS chunks (esbuild) and CSS assets (Angular/Vite); asset budgets cover images/fonts/media only.
+- [x] Hardening sprint (contract alignment for MCP baselines, Nx project metadata discovery, Angular initial classification and lazy-ingress trails, multi-app Action baselines, incomplete workspace scan reporting, Studio size-threshold heuristic labeling).
 
 ## v2.1.0
 
