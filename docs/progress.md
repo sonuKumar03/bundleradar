@@ -1,13 +1,23 @@
 # bundleradar progress
 
-Last updated: 2026-09-24
+Last updated: 2026-09-29
 
 Update this document when a milestone changes. Mark work complete only after
 implementation and verification; record remaining limitations separately.
 
 ## Current status
 
-BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing.
+BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.1.0`, which adds the live web UI Studio and ships hardened parsers, MCP contracts, and release automation.
+
+## v2.1.0
+
+- [x] `bundleradar ui` command (and `scan --ui`) serving a live web Studio with embedded static assets (`go:embed`), real-time file watcher with SSE live stream, build checkpoints API, and `/api/bundle` ingress attribution.
+- [x] 60fps Canvas treemap, search table, side-by-side diff view, and live-sync UI with diagnostic scorecards.
+- [x] Real Vite and webpack fixture apps with parser fixes surfaced by real builds; monorepo-aware worktree baseline builds (`--build-dir` override).
+- [x] Structural bundler format detection (required JSON keys) instead of substring sniffing; typed error exit codes.
+- [x] Honest gzip: measured vs. ratio-estimated gzip distinguished in terminal/JSON output.
+- [x] Multi-arch GoReleaser builds with SBOM + cosign signing; `uninstall.sh` and go.mod tidy.
+- [x] Post-release hardening sprint merged to `master` (contract alignment for MCP baselines, Nx project metadata discovery, Angular lazy-ingress trails, multi-app Action baselines, Studio size-threshold heuristic labeling).
 
 ## Completed
 

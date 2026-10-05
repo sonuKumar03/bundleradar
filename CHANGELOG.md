@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-29
+
 ### Changed
 
 - Detect bundler formats structurally (required JSON keys) instead of by
@@ -73,7 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/sonuKumar03/bundleradar/compare/v0.6.0...v2.0.0
 [0.6.0]: https://github.com/sonuKumar03/bundleradar/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/sonuKumar03/bundleradar/compare/v0.4.0...v0.5.0
