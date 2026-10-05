@@ -324,6 +324,28 @@ jobs:
           fi
           echo "BUDGET_FAILED=false" >> "$GITHUB_ENV"
 
+      - name: Test Action - CSS & Asset Budget Violation Failure
+        id: test-css-asset-budget
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: testdata/css-assets
+          stats: stats.json
+          max-css: 1B
+          max-assets: 1B
+          output: css-asset-budget-failure-report.md
+          build-cmd: 'true'
+
+      - name: Assert CSS & Asset Budget Violation Failed
+        run: |
+          if [ "${{ steps.test-css-asset-budget.outcome }}" != "failure" ]; then
+            echo "Expected CSS/asset budget breach to fail, but got: ${{ steps.test-css-asset-budget.outcome }}"
+            exit 1
+          fi
+          grep -q "MAX_CSS_SIZE" testdata/css-assets/css-asset-budget-failure-report.md || (echo "Expected MAX_CSS_SIZE violation in report" && exit 1)
+          grep -q "MAX_ASSETS_SIZE" testdata/css-assets/css-asset-budget-failure-report.md || (echo "Expected MAX_ASSETS_SIZE violation in report" && exit 1)
+          echo "BUDGET_FAILED=false" >> "$GITHUB_ENV"
+
       - name: Prepare Action stats auto-detection fixtures
         run: |
           mkdir -p testdata/minimal/autodetect/app testdata/minimal/autodetect/other

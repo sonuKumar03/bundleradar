@@ -66,6 +66,14 @@ inputs:
     description: 'Maximum allowed total JS size (e.g. 1.5MB)'
     required: false
     default: ''
+  max-css:
+    description: 'Maximum allowed total CSS size (e.g. 100KB, 1MB)'
+    required: false
+    default: ''
+  max-assets:
+    description: 'Maximum allowed total asset size for images, fonts and media (e.g. 2MB)'
+    required: false
+    default: ''
   baseline:
     description: 'Path to baseline summary JSON for regression checks'
     required: false
@@ -176,6 +184,8 @@ runs:
         INPUT_MAX_INITIAL: ${{ inputs.max-initial }}
         INPUT_MAX_LAZY: ${{ inputs.max-lazy }}
         INPUT_MAX_TOTAL: ${{ inputs.max-total }}
+        INPUT_MAX_CSS: ${{ inputs.max-css }}
+        INPUT_MAX_ASSETS: ${{ inputs.max-assets }}
         INPUT_MAX_INITIAL_DELTA: ${{ inputs.max-initial-delta }}
         INPUT_MAX_TOTAL_DELTA: ${{ inputs.max-total-delta }}
         INPUT_DRIFT_THRESHOLD: ${{ inputs.drift-threshold }}
@@ -279,6 +289,8 @@ runs:
             if [ -n "$INPUT_MAX_INITIAL" ]; then GATE_FLAGS+=("--max-initial" "$INPUT_MAX_INITIAL"); fi
             if [ -n "$INPUT_MAX_LAZY" ]; then GATE_FLAGS+=("--max-lazy" "$INPUT_MAX_LAZY"); fi
             if [ -n "$INPUT_MAX_TOTAL" ]; then GATE_FLAGS+=("--max-total" "$INPUT_MAX_TOTAL"); fi
+            if [ -n "$INPUT_MAX_CSS" ]; then GATE_FLAGS+=("--max-css" "$INPUT_MAX_CSS"); fi
+            if [ -n "$INPUT_MAX_ASSETS" ]; then GATE_FLAGS+=("--max-assets" "$INPUT_MAX_ASSETS"); fi
             if [ -n "$INPUT_MAX_INITIAL_DELTA" ]; then GATE_FLAGS+=("--max-initial-delta" "$INPUT_MAX_INITIAL_DELTA"); fi
             if [ -n "$INPUT_MAX_TOTAL_DELTA" ]; then GATE_FLAGS+=("--max-total-delta" "$INPUT_MAX_TOTAL_DELTA"); fi
             if [ -n "$INPUT_BASELINE" ]; then GATE_FLAGS+=("--against" "$INPUT_BASELINE"); fi
@@ -510,6 +522,8 @@ runs:
         if [ -n "$INPUT_MAX_INITIAL" ]; then GATE_FLAGS+=("--max-initial" "$INPUT_MAX_INITIAL"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_MAX_LAZY" ]; then GATE_FLAGS+=("--max-lazy" "$INPUT_MAX_LAZY"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_MAX_TOTAL" ]; then GATE_FLAGS+=("--max-total" "$INPUT_MAX_TOTAL"); HAS_BUDGET=true; fi
+        if [ -n "$INPUT_MAX_CSS" ]; then GATE_FLAGS+=("--max-css" "$INPUT_MAX_CSS"); HAS_BUDGET=true; fi
+        if [ -n "$INPUT_MAX_ASSETS" ]; then GATE_FLAGS+=("--max-assets" "$INPUT_MAX_ASSETS"); HAS_BUDGET=true; fi
         if [ -n "$BASELINE_TARGET" ]; then GATE_FLAGS+=("--against" "$BASELINE_TARGET"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_MAX_INITIAL_DELTA" ]; then GATE_FLAGS+=("--max-initial-delta" "$INPUT_MAX_INITIAL_DELTA"); HAS_BUDGET=true; fi
         if [ -n "$INPUT_MAX_TOTAL_DELTA" ]; then GATE_FLAGS+=("--max-total-delta" "$INPUT_MAX_TOTAL_DELTA"); HAS_BUDGET=true; fi

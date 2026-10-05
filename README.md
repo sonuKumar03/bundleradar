@@ -296,6 +296,8 @@ jobs:
           entry: src/main.ts
           max-initial: '250kb'
           max-total: '1.2mb'
+          max-css: '100kb'
+          max-assets: '2mb'
           max-initial-delta: '0B'
           post-comment: true
 ```
@@ -314,6 +316,11 @@ jobs:
 | `github-token` | `github.token` | Token used for downloading baseline artifacts and posting PR comments. |
 | `base-ref` | `github.base_ref` | Git ref for baseline comparison in PRs. Automatically fetched in shallow checkouts (`fetch-depth: 1` or `0`). |
 | `build-cmd` | `"npm run build"` | Command used to build `base-ref` inside an isolated temporary git worktree. |
+| `max-initial` | `""` | Maximum allowed initial JS size (e.g. `250KB`, `1MB`). |
+| `max-lazy` | `""` | Maximum allowed lazy JS size (e.g. `500KB`). |
+| `max-total` | `""` | Maximum allowed total JS size (e.g. `1.5MB`). |
+| `max-css` | `""` | Maximum allowed total CSS size (e.g. `100KB`, `1MB`). |
+| `max-assets` | `""` | Maximum allowed total asset size for images, fonts and media (e.g. `2MB`). |
 | `max-initial-delta` | `""` | Maximum allowed increase in initial JS vs baseline (e.g. `0B`, `10KB`). |
 | `max-total-delta` | `""` | Maximum allowed increase in total JS vs baseline. |
 | `post-comment` | `false` | Automatically creates or updates a single sticky PR comment with visual diffs. Requires `pull-requests: write`. |

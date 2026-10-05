@@ -268,7 +268,7 @@ func TestDocumentationContract_CLICommandsAndFlags(t *testing.T) {
 	expectedSpecs := map[string][]string{
 		"scan":      {"--dist", "-d", "--format", "-f", "--output", "-o", "--top", "--entry", "-e", "--why", "--bundler"},
 		"diff":      {"--against", "--format", "-f", "--output", "-o", "--drift-threshold", "--bundler", "--build-cmd", "--no-build"},
-		"gate":      {"--dist", "-d", "--format", "-f", "--output", "-o", "--against", "--max-initial", "--max-total", "--max-initial-delta", "--forbid", "--detect-duplicate-pkgs"},
+		"gate":      {"--dist", "-d", "--format", "-f", "--output", "-o", "--against", "--max-initial", "--max-lazy", "--max-total", "--max-css", "--max-assets", "--max-initial-delta", "--forbid", "--detect-duplicate-pkgs"},
 		"workspace": {"--root", "--format", "-f", "--output", "-o"},
 		"mcp":       {},
 	}
