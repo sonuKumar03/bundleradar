@@ -531,9 +531,16 @@ runs:
         if [ "$HAS_BUDGET" = "false" ]; then GATE_FLAGS+=("--detect-duplicate-pkgs=false"); fi
 
         echo "Enforcing bundle size budgets and configured policies with bundleradar gate..."
-        if ! bundleradar gate "${GATE_FLAGS[@]}"; then
-          echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
+        if [ -n "$INPUT_OUTPUT" ]; then
+          GATE_FLAGS+=("-f" "markdown")
         fi
+        if ! GATE_OUT=$(bundleradar gate "${GATE_FLAGS[@]}" 2>&1); then
+          echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
+          if [ -n "$INPUT_OUTPUT" ]; then
+            printf '\n---\n\n%s\n' "$GATE_OUT" >> "$INPUT_OUTPUT"
+          fi
+        fi
+        if [ -n "$GATE_OUT" ]; then echo "$GATE_OUT"; fi
 
     - name: Post PR Comment
       if: always() && inputs.post-comment == 'true' && github.event_name == 'pull_request'

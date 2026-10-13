@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-10-13
+
+### Fixed
+
+- Action: append gate policy violations (e.g. `MAX_CSS_SIZE`,
+  `MAX_ASSETS_SIZE`) to the markdown report file when `output` is set,
+  so downstream assertions can find them in the report instead of only
+  in terminal output.
+
 ## [2.3.0] - 2026-10-13
 
 ### Added
@@ -130,7 +139,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.3.1...HEAD
+[2.3.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.3.0...v2.3.1
+[2.3.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/sonuKumar03/bundleradar/compare/v0.6.0...v2.0.0

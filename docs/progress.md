@@ -7,7 +7,11 @@ implementation and verification; record remaining limitations separately.
 
 ## Current status
 
-BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.3.0`, which upgrades the Studio treemap to a squarified layout with package-to-module drill-down and ships internal hardening across parsers, diff, and worktree.
+BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.3.1`, which fixes gate violation reporting in the GitHub Action report output.
+
+## v2.3.1
+
+- [x] Action: append gate policy violations (`MAX_CSS_SIZE`, `MAX_ASSETS_SIZE`) to the markdown report file when `output` is set, fixing E2E assertion failures.
 
 ## v2.3.0
 
