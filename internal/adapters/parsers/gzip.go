@@ -3,9 +3,11 @@ package parsers
 import (
 	"bytes"
 	"compress/gzip"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // MIME ratio buckets for gzip estimation when the emitted file is unavailable.
@@ -35,20 +37,30 @@ func mimeRatio(path string) float64 {
 	}
 }
 
+var bufPool = sync.Pool{
+	New: func() any { return new(bytes.Buffer) },
+}
+
 // RealGzip compresses data with standard gzip and returns the compressed length.
-// When the file is not found on disk, realGzip returns ok=false and the caller
-// falls back to a per-MIME ratio estimate.
+// It streams from the file handle and reuses buffers to avoid materializing the
+// full file as a []byte. When the file is not found on disk, realGzip returns
+// ok=false and the caller falls back to a per-MIME ratio estimate.
 func realGzip(path string) (int64, bool) {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return 0, false
 	}
-	var buf bytes.Buffer
-	gw, err := gzip.NewWriterLevel(&buf, gzip.DefaultCompression)
+	defer f.Close()
+
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
+	gw, err := gzip.NewWriterLevel(buf, gzip.DefaultCompression)
 	if err != nil {
 		return 0, false
 	}
-	if _, err := gw.Write(data); err != nil {
+	if _, err := io.Copy(gw, f); err != nil {
 		return 0, false
 	}
 	if err := gw.Close(); err != nil {

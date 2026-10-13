@@ -175,29 +175,10 @@ func Calculate(base, current *core.Bundle, opts Options) *BundleDiff {
 		}
 	}
 
-	// 4. Package deltas & Attribution
-	basePkgMap := make(map[string]core.PackageContribution)
-	for _, p := range base.TopPackages(0) {
-		basePkgMap[p.Name] = p
-	}
-	currPkgMap := make(map[string]core.PackageContribution)
-	for _, p := range current.TopPackages(0) {
-		currPkgMap[p.Name] = p
-	}
-
-	// Map modules to package names for chunk and ingress path resolution
-	currPkgMods := make(map[string][]core.Module)
-	for _, m := range current.Modules {
-		if m.Package != "" {
-			currPkgMods[m.Package] = append(currPkgMods[m.Package], m)
-		}
-	}
-	basePkgMods := make(map[string][]core.Module)
-	for _, m := range base.Modules {
-		if m.Package != "" {
-			basePkgMods[m.Package] = append(basePkgMods[m.Package], m)
-		}
-	}
+	// 4. Package deltas & Attribution — single pass per bundle builds both
+	// contribution totals and module groupings to avoid redundant iteration.
+	basePkgMap, basePkgMods := aggregatePackages(base)
+	currPkgMap, currPkgMods := aggregatePackages(current)
 
 	for _, name := range unionKeys(basePkgMap, currPkgMap) {
 		bSize := basePkgMap[name].SizeBytes
@@ -296,6 +277,24 @@ func Calculate(base, current *core.Bundle, opts Options) *BundleDiff {
 	}
 
 	return res
+}
+
+func aggregatePackages(b *core.Bundle) (map[string]core.PackageContribution, map[string][]core.Module) {
+	pkgMap := make(map[string]core.PackageContribution)
+	pkgMods := make(map[string][]core.Module)
+	for _, m := range b.Modules {
+		if m.IsAppCode || m.Package == "" {
+			continue
+		}
+		contrib := pkgMap[m.Package]
+		contrib.Name = m.Package
+		contrib.SizeBytes += m.SizeBytes
+		contrib.GzipBytes += m.GzipBytes
+		contrib.ModuleCount++
+		pkgMap[m.Package] = contrib
+		pkgMods[m.Package] = append(pkgMods[m.Package], m)
+	}
+	return pkgMap, pkgMods
 }
 
 func unionKeys[M ~map[string]V, V any](a, b M) []string {

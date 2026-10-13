@@ -75,6 +75,8 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	}
 	slices.Sort(sortedOutputs)
 
+	seenModules := make(map[string]*core.Module)
+
 	// Process outputs as chunks
 	for _, outPath := range sortedOutputs {
 		if err := ctx.Err(); err != nil {
@@ -132,17 +134,23 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			}
 			inBytes := out.Inputs[inPath]
 			chunk.ModuleIDs = append(chunk.ModuleIDs, inPath)
-			pkgName := extractPackageName(inPath)
-			isApp := (pkgName == "")
 
-			bundle.AddModule(core.Module{
-				ID:        inPath,
-				Package:   pkgName,
-				SizeBytes: inBytes.BytesInOutput,
-				GzipBytes: estimateGzip(inBytes.BytesInOutput, inPath),
-				IsAppCode: isApp,
-				ChunkIDs:  []string{chunkID},
-			})
+			if existing, ok := seenModules[inPath]; ok {
+				existing.ChunkIDs = append(existing.ChunkIDs, chunkID)
+				existing.SizeBytes += inBytes.BytesInOutput
+				existing.GzipBytes += estimateGzip(inBytes.BytesInOutput, inPath)
+			} else {
+				pkgName := extractPackageName(inPath)
+				mod := &core.Module{
+					ID:        inPath,
+					Package:   pkgName,
+					SizeBytes: inBytes.BytesInOutput,
+					GzipBytes: estimateGzip(inBytes.BytesInOutput, inPath),
+					IsAppCode: pkgName == "",
+					ChunkIDs:  []string{chunkID},
+				}
+				seenModules[inPath] = mod
+			}
 		}
 
 		bundle.AddChunk(chunk)
@@ -156,6 +164,16 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				ChunkIDs:         []string{chunkID},
 			})
 		}
+	}
+
+	// Add deduplicated modules to bundle in sorted ID order for determinism
+	modIDs := make([]string, 0, len(seenModules))
+	for id := range seenModules {
+		modIDs = append(modIDs, id)
+	}
+	slices.Sort(modIDs)
+	for _, id := range modIDs {
+		bundle.AddModule(*seenModules[id])
 	}
 
 	// A statically imported split chunk is required at startup even when it

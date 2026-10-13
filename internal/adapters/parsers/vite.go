@@ -50,6 +50,18 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 	})
 
 	distDir := resolveDistDir(target.StatsPath, target.DistPath)
+
+	// Cache fileSize results to avoid repeated os.Stat syscalls
+	fileSizeCache := make(map[string]int64, len(manifest))
+	cachedFileSize := func(relPath string) int64 {
+		if sz, ok := fileSizeCache[relPath]; ok {
+			return sz
+		}
+		sz := fileSize(distDir, relPath)
+		fileSizeCache[relPath] = sz
+		return sz
+	}
+
 	staticByEntry := make(map[string]map[string]bool)
 	initialKeys := make(map[string]bool)
 	for entry, chunk := range manifest {
@@ -79,7 +91,7 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		sizeBytes := fileSize(distDir, vChunk.File)
+		sizeBytes := cachedFileSize(vChunk.File)
 
 		loadType := core.LoadTypeAsync
 		if initialKeys[srcKey] {
@@ -126,7 +138,7 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 
 		// Add emitted CSS as assets
 		for _, cssFile := range vChunk.Css {
-			cssSize := fileSize(distDir, cssFile)
+			cssSize := cachedFileSize(cssFile)
 			cssGz, cssEstimated := gzipFor(distDir, cssFile, cssSize)
 			bundle.AddAsset(core.Asset{
 				Path:          cssFile,
@@ -147,8 +159,9 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 				continue
 			}
 			chunk := manifest[key]
-			ep.InitialBytes += fileSize(distDir, chunk.File)
-			gz, _ := gzipFor(distDir, chunk.File, fileSize(distDir, chunk.File))
+			sz := cachedFileSize(chunk.File)
+			ep.InitialBytes += sz
+			gz, _ := gzipFor(distDir, chunk.File, sz)
 			ep.InitialGzipBytes += gz
 			ep.ChunkIDs = append(ep.ChunkIDs, filepath.Base(chunk.File))
 		}
@@ -159,10 +172,6 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 	// Attribute lazy-chunk bytes to entrypoints by walking each entry's
 	// dynamicImports chain through the manifest. Without this, entrypoint
 	// asyncBytes stays 0 even for apps with real dynamic imports.
-	chunkSize := make(map[string]int64, len(manifest))
-	for _, vChunk := range manifest {
-		chunkSize[vChunk.File] = fileSize(distDir, vChunk.File)
-	}
 	for srcKey, vChunk := range manifest {
 		if !vChunk.IsEntry {
 			continue
@@ -181,7 +190,7 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 			if !ok {
 				continue
 			}
-			asyncBytes += chunkSize[next.File]
+			asyncBytes += cachedFileSize(next.File)
 			queue = append(queue, next.DynamicImports...)
 		}
 		if asyncBytes > 0 {

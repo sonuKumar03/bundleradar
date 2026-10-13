@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/sonuKumar03/bundleradar/internal/adapters/reporters"
@@ -40,7 +39,7 @@ func newScanCommand() *cobra.Command {
 			}
 
 			client := bundleradar.New()
-			ctx := context.Background()
+			ctx := c.Context()
 
 			bundle, err := client.Scan(ctx, bundleradar.ScanOptions{
 				StatsPath: statsPath,

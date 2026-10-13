@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"slices"
 
@@ -47,7 +46,7 @@ func newGateCommand() *cobra.Command {
 			}
 
 			client := bundleradar.New()
-			ctx := context.Background()
+			ctx := c.Context()
 
 			bundle, err := client.Scan(ctx, bundleradar.ScanOptions{
 				StatsPath: statsPath,
@@ -89,54 +88,16 @@ func newGateCommand() *cobra.Command {
 			if err != nil {
 				return &UsageError{Err: err}
 			}
-			if maxInitial != "" {
-				val, err := bundleradar.ParseBytes(maxInitial)
-				if err != nil {
-					return &UsageError{Err: fmt.Errorf("invalid --max-initial: %w", err)}
-				}
-				pol.MaxInitial = &val
-			}
-			if maxTotal != "" {
-				val, err := bundleradar.ParseBytes(maxTotal)
-				if err != nil {
-					return &UsageError{Err: fmt.Errorf("invalid --max-total: %w", err)}
-				}
-				pol.MaxTotal = &val
-			}
-			if maxLazy != "" {
-				val, err := bundleradar.ParseBytes(maxLazy)
-				if err != nil {
-					return &UsageError{Err: fmt.Errorf("invalid --max-lazy: %w", err)}
-				}
-				pol.MaxLazy = &val
-			}
-			if maxInitialDelta != "" {
-				val, err := bundleradar.ParseBytes(maxInitialDelta)
-				if err != nil {
-					return &UsageError{Err: fmt.Errorf("invalid --max-initial-delta: %w", err)}
-				}
-				pol.MaxInitialDelta = &val
-			}
-			if maxTotalDelta != "" {
-				val, err := bundleradar.ParseBytes(maxTotalDelta)
-				if err != nil {
-					return &UsageError{Err: fmt.Errorf("invalid --max-total-delta: %w", err)}
-				}
-				pol.MaxTotalDelta = &val
-			}
-			if maxCSS != "" {
-				val, err := bundleradar.ParseBytes(maxCSS)
-				if err != nil {
-					return &UsageError{Err: fmt.Errorf("invalid --max-css: %w", err)}
-				}
-				pol.MaxCSS = &val
-			}
-			if maxAssets != "" {
-				val, err := bundleradar.ParseBytes(maxAssets)
-				if err != nil {
-					return &UsageError{Err: fmt.Errorf("invalid --max-assets: %w", err)}
-				}
-				pol.MaxAssets = &val
+			if err := bundleradar.ApplyOverrides(&pol, bundleradar.PolicyOverrides{
+				MaxInitial:      maxInitial,
+				MaxLazy:         maxLazy,
+				MaxTotal:        maxTotal,
+				MaxInitialDelta: maxInitialDelta,
+				MaxTotalDelta:   maxTotalDelta,
+				MaxCSS:          maxCSS,
+				MaxAssets:       maxAssets,
+			}); err != nil {
+				return &UsageError{Err: err}
 			}
 			if c.Flags().Changed("forbid") {
 				pol.ForbiddenPkgs = forbid

@@ -221,54 +221,16 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	if err != nil {
 		return mcpspec.NewToolResultError(fmt.Sprintf("Invalid config: %v", err)), nil
 	}
-	if maxInitial != "" {
-		val, err := bundleradar.ParseBytes(maxInitial)
-		if err != nil {
-			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_initial: %v", err)), nil
-		}
-		pol.MaxInitial = &val
-	}
-	if maxTotal != "" {
-		val, err := bundleradar.ParseBytes(maxTotal)
-		if err != nil {
-			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_total: %v", err)), nil
-		}
-		pol.MaxTotal = &val
-	}
-	if maxLazy != "" {
-		val, err := bundleradar.ParseBytes(maxLazy)
-		if err != nil {
-			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_lazy: %v", err)), nil
-		}
-		pol.MaxLazy = &val
-	}
-	if maxInitialDelta != "" {
-		val, err := bundleradar.ParseBytes(maxInitialDelta)
-		if err != nil {
-			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_initial_delta: %v", err)), nil
-		}
-		pol.MaxInitialDelta = &val
-	}
-	if maxTotalDelta != "" {
-		val, err := bundleradar.ParseBytes(maxTotalDelta)
-		if err != nil {
-			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_total_delta: %v", err)), nil
-		}
-		pol.MaxTotalDelta = &val
-	}
-	if maxCSS != "" {
-		val, err := bundleradar.ParseBytes(maxCSS)
-		if err != nil {
-			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_css: %v", err)), nil
-		}
-		pol.MaxCSS = &val
-	}
-	if maxAssets != "" {
-		val, err := bundleradar.ParseBytes(maxAssets)
-		if err != nil {
-			return mcpspec.NewToolResultError(fmt.Sprintf("Invalid max_assets: %v", err)), nil
-		}
-		pol.MaxAssets = &val
+	if err := bundleradar.ApplyOverrides(&pol, bundleradar.PolicyOverrides{
+		MaxInitial:      maxInitial,
+		MaxLazy:         maxLazy,
+		MaxTotal:        maxTotal,
+		MaxInitialDelta: maxInitialDelta,
+		MaxTotalDelta:   maxTotalDelta,
+		MaxCSS:          maxCSS,
+		MaxAssets:       maxAssets,
+	}); err != nil {
+		return mcpspec.NewToolResultError(fmt.Sprintf("Invalid policy override: %v", err)), nil
 	}
 	if args, ok := req.Params.Arguments.(map[string]any); ok {
 		if _, explicit := args["forbid"]; explicit {

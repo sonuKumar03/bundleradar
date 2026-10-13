@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/sonuKumar03/bundleradar/internal/core/diff"
@@ -35,7 +34,7 @@ func newDiffCommand() *cobra.Command {
 			}
 
 			client := bundleradar.New()
-			ctx := context.Background()
+			ctx := c.Context()
 
 			currentBundle, err := client.Scan(ctx, bundleradar.ScanOptions{
 				StatsPath: currentPath,

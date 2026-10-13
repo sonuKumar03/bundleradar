@@ -79,9 +79,13 @@ func TestResolveRef(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
 	}
+	repoRoot, err := worktree.GetRepoRoot(wd)
+	if err != nil {
+		t.Fatalf("get repo root: %v", err)
+	}
 
 	// HEAD should always resolve
-	ref, err := worktree.ResolveRef(wd, "HEAD")
+	ref, err := worktree.ResolveRef(repoRoot, "HEAD")
 	if err != nil {
 		t.Fatalf("resolve HEAD: %v", err)
 	}
@@ -89,13 +93,10 @@ func TestResolveRef(t *testing.T) {
 		t.Errorf("expected HEAD, got %q", ref)
 	}
 
-	// Non-existent ref should return as-is without error
-	ref, err = worktree.ResolveRef(wd, "non-existent-ref-xyz")
-	if err != nil {
-		t.Fatalf("resolve non-existent ref: %v", err)
-	}
-	if ref != "non-existent-ref-xyz" {
-		t.Errorf("expected original ref returned, got %q", ref)
+	// Non-existent ref should return an error
+	_, err = worktree.ResolveRef(repoRoot, "non-existent-ref-xyz")
+	if err == nil {
+		t.Fatal("expected error for non-existent ref, got nil")
 	}
 }
 

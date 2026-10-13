@@ -35,15 +35,8 @@ func GetRepoRoot(dir string) (string, error) {
 
 // ResolveRef resolves a git ref in repoRoot, checking if ref exists directly or
 // falling back to origin/<ref> if the ref is only available remotely (common in CI PR checkouts).
-func ResolveRef(dir string, ref string) (string, error) {
-	if !IsGitRepo(dir) {
-		return "", fmt.Errorf("directory %q is not a git repository", dir)
-	}
-	repoRoot, err := GetRepoRoot(dir)
-	if err != nil {
-		return "", err
-	}
-
+// repoRoot must be the top-level directory of the git repository.
+func ResolveRef(repoRoot string, ref string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--verify", ref)
 	cmd.Dir = repoRoot
 	if err := cmd.Run(); err == nil {
@@ -59,13 +52,17 @@ func ResolveRef(dir string, ref string) (string, error) {
 		}
 	}
 
-	return ref, nil
+	return "", fmt.Errorf("git ref %q not found locally or as origin/%s", ref, ref)
 }
 
 // GetCommitSHA resolves a git ref (branch, tag, commit) to a short commit SHA.
 func GetCommitSHA(dir string, ref string) (string, error) {
-	resolvedRef, _ := ResolveRef(dir, ref)
-	if resolvedRef == "" {
+	repoRoot, err := GetRepoRoot(dir)
+	if err != nil {
+		return "", err
+	}
+	resolvedRef, err := ResolveRef(repoRoot, ref)
+	if err != nil {
 		resolvedRef = ref
 	}
 	cmd := exec.Command("git", "rev-parse", "--short", resolvedRef)
@@ -94,9 +91,10 @@ func Create(rootDir string, ref string) (string, func(), error) {
 		return "", nil, fmt.Errorf("create temp worktree dir: %w", err)
 	}
 
-	resolvedRef, _ := ResolveRef(repoRoot, ref)
-	if resolvedRef == "" {
-		resolvedRef = ref
+	resolvedRef, err := ResolveRef(repoRoot, ref)
+	if err != nil {
+		_ = os.RemoveAll(tempDir)
+		return "", nil, err
 	}
 
 	// Add git worktree
@@ -189,9 +187,14 @@ func RunBuild(workDir string, buildCmd string) error {
 	}
 
 	cmd.Dir = workDir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+
+	// Capture only the last 64KB of output to avoid unbounded memory usage
+	// from verbose build processes; the tail is usually the most useful.
+	const maxCapture = 64 * 1024
+	stdout := &boundedBuffer{max: maxCapture}
+	stderr := &boundedBuffer{max: maxCapture}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	if err := cmd.Run(); err != nil {
 		errOutput := strings.TrimSpace(stderr.String())
@@ -202,4 +205,24 @@ func RunBuild(workDir string, buildCmd string) error {
 	}
 
 	return nil
+}
+
+// boundedBuffer keeps only the last max bytes written to it.
+type boundedBuffer struct {
+	buf bytes.Buffer
+	max int
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	n := len(p)
+	b.buf.Write(p)
+	if b.buf.Len() > b.max {
+		over := b.buf.Len() - b.max
+		b.buf.Next(over)
+	}
+	return n, nil
+}
+
+func (b *boundedBuffer) String() string {
+	return b.buf.String()
 }

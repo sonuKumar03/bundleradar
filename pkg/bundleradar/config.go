@@ -87,6 +87,46 @@ func (c *Config) ToPolicy() (Policy, error) {
 	return pol, nil
 }
 
+// PolicyOverrides holds optional CLI/MCP flag values that override a
+// config-derived Policy. Empty strings are ignored.
+type PolicyOverrides struct {
+	MaxInitial      string
+	MaxLazy         string
+	MaxTotal        string
+	MaxInitialDelta string
+	MaxTotalDelta   string
+	MaxCSS          string
+	MaxAssets       string
+}
+
+// ApplyOverrides merges non-empty flag values into an existing Policy.
+func ApplyOverrides(pol *Policy, o PolicyOverrides) error {
+	fields := []struct {
+		flag string
+		dest **int64
+		name string
+	}{
+		{o.MaxInitial, &pol.MaxInitial, "max-initial"},
+		{o.MaxLazy, &pol.MaxLazy, "max-lazy"},
+		{o.MaxTotal, &pol.MaxTotal, "max-total"},
+		{o.MaxInitialDelta, &pol.MaxInitialDelta, "max-initial-delta"},
+		{o.MaxTotalDelta, &pol.MaxTotalDelta, "max-total-delta"},
+		{o.MaxCSS, &pol.MaxCSS, "max-css"},
+		{o.MaxAssets, &pol.MaxAssets, "max-assets"},
+	}
+	for _, f := range fields {
+		if f.flag == "" {
+			continue
+		}
+		val, err := ParseBytes(f.flag)
+		if err != nil {
+			return fmt.Errorf("invalid --%s: %w", f.name, err)
+		}
+		*f.dest = &val
+	}
+	return nil
+}
+
 // LoadConfig loads and strictly parses a .bundleradar.yml file.
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
