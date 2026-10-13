@@ -512,17 +512,30 @@
         <div class="flex items-center space-x-2">
           <span class="text-[11px] uppercase tracking-wider text-[#8b949e] font-medium">Treemap Visualizer</span>
           <span id="active-chunk-pill" class="text-[10px] px-2 py-0.5 rounded bg-[#21262d] text-[#c9d1d9] border border-[#30363d]">All Chunks</span>
+
+          <!-- Breadcrumb -->
+          <nav id="treemap-breadcrumb" class="flex items-center space-x-1 ml-2 hidden">
+            <button id="breadcrumb-root" class="text-[11px] px-2 py-0.5 rounded bg-[#21262d] text-[#58a6ff] border border-[#30363d] hover:bg-[#30363d] transition-colors cursor-pointer">All Packages</button>
+            <span class="text-[#6e7681]">▸</span>
+            <span id="breadcrumb-pkg" class="text-[11px] px-2 py-0.5 rounded bg-[#58a6ff]/15 text-[#58a6ff] border border-[#58a6ff]/30 font-semibold">--</span>
+          </nav>
         </div>
         <div class="flex items-center space-x-3 text-[11px] text-[#8b949e]">
-          <span>Click tile to jump to Package Ingress</span>
+          <!-- Gzip/Raw toggle -->
+          <div class="flex items-center space-x-1 bg-[#0d1117] border border-[#30363d] rounded-md overflow-hidden">
+            <button id="treemap-size-raw" class="px-2.5 py-1 text-[11px] font-mono bg-[#21262d] text-[#e6edf3] border-r border-[#30363d] transition-colors">Raw</button>
+            <button id="treemap-size-gzip" class="px-2.5 py-1 text-[11px] font-mono text-[#8b949e] hover:text-[#e6edf3] transition-colors">Gzip</button>
+          </div>
           <span class="text-[#30363d]">•</span>
-          <span>60fps Canvas</span>
+          <span>Click to drill into modules</span>
+          <span class="text-[#30363d]">•</span>
+          <span>Right-click to go back</span>
         </div>
       </div>
 
       <div class="flex-1 w-full relative rounded-md overflow-hidden bg-[#0d1117] border border-[#30363d] shadow-lg min-h-0">
         <canvas id="treemap-canvas" class="w-full h-full block cursor-pointer"></canvas>
-        <div id="tooltip" class="absolute pointer-events-none hidden z-50 bg-[#161b22] border border-[#30363d] text-[#c9d1d9] text-xs p-3 rounded-md shadow-2xl font-mono backdrop-blur-md"></div>
+        <div id="tooltip" class="absolute pointer-events-none hidden z-50 bg-[#161b22] border border-[#30363d] text-[#c9d1d9] text-xs p-3 rounded-md shadow-2xl font-mono backdrop-blur-md max-w-xs"></div>
       </div>
     </section>
 

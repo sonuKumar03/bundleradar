@@ -8,22 +8,20 @@ class TreemapEngine {
     this.selectedName = '';
     this.highlightQuery = '';
     this.onSelect = null;
+    this.onDrillDown = null;
+    this.onDrillUp = null;
+    this.useGzip = false;
 
-    // Luminous, clear, high-contrast palette
+    this.drillStack = [];
+    this.currentLevel = null;
+
     this.palette = [
-      '#2563eb', // vivid royal blue
-      '#059669', // vivid emerald green
-      '#7c3aed', // vivid violet
-      '#d97706', // vivid amber
-      '#0284c7', // vivid sky blue
-      '#e11d48', // vivid rose
-      '#0d9488', // vivid teal
-      '#c026d3', // vivid fuchsia
-      '#ea580c', // vivid orange
-      '#4f46e5', // vivid indigo
-      '#16a34a', // vivid forest green
+      '#2563eb', '#059669', '#7c3aed', '#d97706', '#0284c7',
+      '#e11d48', '#0d9488', '#c026d3', '#ea580c', '#4f46e5',
+      '#16a34a', '#0369a1', '#9333ea', '#b45309', '#dc2626',
     ];
 
+    this.packageColorMap = new Map();
     this.initEvents();
   }
 
@@ -37,7 +35,6 @@ class TreemapEngine {
       const rect = this.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-
       const hit = this.hitTest(x, y);
       if (hit !== this.hoveredNode) {
         this.hoveredNode = hit;
@@ -59,13 +56,22 @@ class TreemapEngine {
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       const hit = this.hitTest(x, y);
-      if (hit && !hit.item.isOther) {
+      if (!hit) return;
+
+      if (hit.item.isOther) return;
+
+      if (hit.item.children && hit.item.children.length > 0) {
+        this.drillInto(hit.item);
+      } else if (typeof this.onSelect === 'function') {
         this.selectedName = hit.item.name;
         this.draw();
-        if (typeof this.onSelect === 'function') {
-          this.onSelect(hit.item);
-        }
+        this.onSelect(hit.item);
       }
+    });
+
+    this.canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this.drillUp();
     });
   }
 
@@ -78,139 +84,200 @@ class TreemapEngine {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.displayWidth = rect.width;
     this.displayHeight = rect.height;
-
     this.computeLayout();
     this.draw();
   }
 
-  setData(packages, totalBytes) {
-    this.rawPackages = packages || [];
-    this.totalBytes = totalBytes || this.rawPackages.reduce((acc, p) => acc + (p.sizeBytes || 0), 0);
+  sizeOf(item) {
+    return this.useGzip ? (item.gzipBytes || item.sizeBytes || 0) : (item.sizeBytes || 0);
+  }
 
-    const threshold = this.totalBytes * 0.002;
+  setData(packages, totalBytes, modulesByPackage) {
+    this.rawPackages = packages || [];
+    this.modulesByPackage = modulesByPackage || {};
+    this.totalBytes = totalBytes || this.rawPackages.reduce((acc, p) => acc + (p.sizeBytes || 0), 0);
+    this.drillStack = [];
+    this.currentLevel = null;
+
+    this.packageColorMap.clear();
+    const sorted = [...this.rawPackages].sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
+    sorted.forEach((p, i) => {
+      if (!p.isOther) this.packageColorMap.set(p.name, this.palette[i % this.palette.length]);
+    });
+
+    this._buildLevel(this.rawPackages, this.totalBytes, null);
+  }
+
+  _buildLevel(items, totalBytes, parentName) {
+    const threshold = totalBytes * 0.002;
     const major = [];
     let otherBytes = 0;
+    let otherGzip = 0;
     let otherCount = 0;
 
-    for (const p of this.rawPackages) {
-      if (p.sizeBytes >= threshold) {
-        major.push({ ...p });
+    const sorted = [...items].sort((a, b) => this.sizeOf(b) - this.sizeOf(a));
+
+    for (const p of sorted) {
+      if (this.sizeOf(p) >= threshold) {
+        const entry = { ...p };
+        if (!parentName && this.modulesByPackage[p.name] && this.modulesByPackage[p.name].length > 1) {
+          entry.children = this.modulesByPackage[p.name];
+        }
+        major.push(entry);
       } else {
-        otherBytes += p.sizeBytes;
+        otherBytes += p.sizeBytes || 0;
+        otherGzip += p.gzipBytes || 0;
         otherCount++;
       }
     }
 
     if (otherCount > 0) {
       major.push({
-        name: `(Others: ${otherCount} pkgs)`,
+        name: `(${otherCount} smaller ${parentName ? 'modules' : 'packages'})`,
         sizeBytes: otherBytes,
-        isOther: true
+        gzipBytes: otherGzip,
+        isOther: true,
       });
     }
 
-    this.data = major;
+    this.currentLevel = { items: major, totalBytes, parentName };
     this.resizeAndDraw();
   }
 
-  computeLayout() {
-    if (!this.data || this.data.length === 0 || !this.displayWidth || !this.displayHeight) return;
-    this.nodes = [];
+  drillInto(item) {
+    if (!item.children || item.children.length === 0) return;
 
-    let remaining = [...this.data];
-    let x = 0, y = 0, w = this.displayWidth, h = this.displayHeight;
+    this.drillStack.push(this.currentLevel);
+    const childTotal = item.children.reduce((sum, c) => sum + (c.sizeBytes || 0), 0);
+    this._buildLevel(item.children, childTotal, item.name);
 
-    let remainingTotal = remaining.reduce((sum, item) => sum + item.sizeBytes, 0);
-    if (remainingTotal === 0) return;
-
-    for (let i = 0; i < remaining.length; i++) {
-      const item = remaining[i];
-      const isLast = (i === remaining.length - 1);
-      const ratio = isLast ? 1 : Math.min(1, item.sizeBytes / remainingTotal);
-      remainingTotal = Math.max(1, remainingTotal - item.sizeBytes);
-
-      let nw, nh;
-      if (w > h) {
-        nw = isLast ? w : Math.min(w, Math.max(2, Math.round(w * ratio)));
-        nh = h;
-        this.nodes.push({ item, x, y, w: nw, h: nh });
-        x += nw;
-        w = Math.max(0, w - nw);
-      } else {
-        nw = w;
-        nh = isLast ? h : Math.min(h, Math.max(2, Math.round(h * ratio)));
-        this.nodes.push({ item, x, y, w: nw, h: nh });
-        y += nh;
-        h = Math.max(0, h - nh);
-      }
+    if (typeof this.onDrillDown === 'function') {
+      this.onDrillDown(item.name, this.drillStack.length);
     }
+  }
+
+  drillUp() {
+    if (this.drillStack.length === 0) return;
+    this.currentLevel = this.drillStack.pop();
+    this.resizeAndDraw();
+
+    if (typeof this.onDrillUp === 'function') {
+      this.onDrillUp(this.currentLevel.parentName, this.drillStack.length);
+    }
+  }
+
+  drillToRoot() {
+    if (this.drillStack.length === 0) return;
+    this.currentLevel = this.drillStack[0];
+    this.drillStack = [];
+    this.resizeAndDraw();
+
+    if (typeof this.onDrillUp === 'function') {
+      this.onDrillUp(null, 0);
+    }
+  }
+
+  get depth() {
+    return this.drillStack.length;
+  }
+
+  computeLayout() {
+    if (!this.currentLevel || !this.currentLevel.items.length || !this.displayWidth || !this.displayHeight) {
+      this.nodes = [];
+      return;
+    }
+    const items = this.currentLevel.items;
+    this.nodes = squarify(items, 0, 0, this.displayWidth, this.displayHeight, (i) => this.sizeOf(i));
   }
 
   draw() {
     if (!this.ctx || !this.displayWidth) return;
     this.ctx.clearRect(0, 0, this.displayWidth, this.displayHeight);
 
+    const isModuleLevel = this.drillStack.length > 0;
+    const parentPkgName = this.currentLevel?.parentName;
+
     for (let i = 0; i < this.nodes.length; i++) {
       const node = this.nodes[i];
+      if (node.w < 1 || node.h < 1) continue;
+
       const isHovered = (node === this.hoveredNode);
       const isSelected = (this.selectedName && node.item.name === this.selectedName);
       const isMatch = this.highlightQuery && node.item.name.toLowerCase().includes(this.highlightQuery);
+      const hasDrill = !!(node.item.children && node.item.children.length > 0);
 
       this.ctx.save();
 
       let baseColor;
       if (node.item.isOther) {
-        baseColor = '#475569'; // clean slate 600
+        baseColor = '#475569';
+      } else if (isModuleLevel) {
+        const pkgColor = this.packageColorMap.get(parentPkgName) || this.palette[0];
+        baseColor = shadeColor(pkgColor, -15 + (i % 5) * 8);
       } else {
-        baseColor = this.palette[i % this.palette.length];
+        baseColor = this.packageColorMap.get(node.item.name) || this.palette[i % this.palette.length];
       }
 
       this.ctx.fillStyle = baseColor;
 
-      // Keep tiles 100% luminous unless searching
       if (this.highlightQuery && !isMatch) {
         this.ctx.globalAlpha = 0.2;
+      } else if (isHovered) {
+        this.ctx.globalAlpha = 0.85;
       } else {
         this.ctx.globalAlpha = 1.0;
       }
 
-      this.ctx.fillRect(node.x, node.y, node.w, node.h);
+      const pad = 1;
+      const rx = node.x + pad;
+      const ry = node.y + pad;
+      const rw = Math.max(0, node.w - pad * 2);
+      const rh = Math.max(0, node.h - pad * 2);
 
-      // Outer tile borders
+      roundRect(this.ctx, rx, ry, rw, rh, 3);
+      this.ctx.fill();
+
       if (isSelected) {
         this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 3;
+        this.ctx.lineWidth = 2.5;
+        roundRect(this.ctx, rx, ry, rw, rh, 3);
+        this.ctx.stroke();
       } else if (isHovered) {
         this.ctx.strokeStyle = '#38bdf8';
-        this.ctx.lineWidth = 2.5;
-      } else {
-        this.ctx.strokeStyle = '#0d1117';
-        this.ctx.lineWidth = 1.5;
-      }
-      this.ctx.strokeRect(node.x, node.y, node.w, node.h);
-
-      // Inner subtle border highlight for crisp separation
-      if (node.w > 6 && node.h > 6) {
-        this.ctx.strokeStyle = isSelected ? 'rgba(56, 189, 248, 0.8)' : 'rgba(255, 255, 255, 0.18)';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(node.x + 1.5, node.y + 1.5, Math.max(0, node.w - 3), Math.max(0, node.h - 3));
+        this.ctx.lineWidth = 2;
+        roundRect(this.ctx, rx, ry, rw, rh, 3);
+        this.ctx.stroke();
       }
 
-      // High-contrast labels
-      if (node.w > 46 && node.h > 24) {
+      this.ctx.globalAlpha = 1.0;
+
+      if (rw > 44 && rh > 22) {
         this.ctx.save();
-        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        this.ctx.shadowBlur = 5;
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        this.ctx.fillText(node.item.name, node.x + 8, node.y + 19, Math.max(0, node.w - 16));
+        this.ctx.beginPath();
+        this.ctx.rect(rx + 4, ry + 2, rw - 8, rh - 4);
+        this.ctx.clip();
 
-        // Secondary line: size in readable font
-        if (node.h > 42 && node.w > 52) {
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.font = 'bold 10px "JetBrains Mono", monospace';
-          this.ctx.fillText(this.formatBytes(node.item.sizeBytes), node.x + 8, node.y + 34, Math.max(0, node.w - 16));
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillStyle = '#ffffff';
+
+        const label = shortLabel(node.item.name, isModuleLevel);
+        const fontSize = rw > 120 && rh > 40 ? 12 : 11;
+        this.ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        this.ctx.fillText(label, rx + 7, ry + 16, rw - 14);
+
+        if (rh > 38 && rw > 50) {
+          this.ctx.font = '500 10px "JetBrains Mono", monospace';
+          const sizeLabel = this.formatBytes(this.sizeOf(node.item));
+          this.ctx.fillText(sizeLabel, rx + 7, ry + 30, rw - 14);
         }
+
+        if (hasDrill && rh > 52 && rw > 70) {
+          this.ctx.font = '400 9px -apple-system, sans-serif';
+          this.ctx.fillStyle = 'rgba(255,255,255,0.6)';
+          this.ctx.fillText(`${node.item.children.length} modules ▸`, rx + 7, ry + 43, rw - 14);
+        }
+
         this.ctx.restore();
       }
 
@@ -232,17 +299,53 @@ class TreemapEngine {
       this.tooltip.classList.add('hidden');
       return;
     }
-    const pct = this.totalBytes > 0 ? ((node.item.sizeBytes / this.totalBytes) * 100).toFixed(1) : '0.0';
+    const size = this.sizeOf(node.item);
+    const parentTotal = this.currentLevel?.totalBytes || this.totalBytes;
+    const pct = parentTotal > 0 ? ((size / parentTotal) * 100).toFixed(1) : '0.0';
     const escapedName = this.escapeHTML(node.item.name);
+    const hasDrill = !!(node.item.children && node.item.children.length > 0);
+    const isModuleLevel = this.drillStack.length > 0;
+
+    let sizeLabel = this.useGzip ? 'Gzip' : 'Size';
+    let extraLine = '';
+
+    if (this.useGzip && node.item.sizeBytes) {
+      extraLine = `<div class="text-[#8b949e] text-xs mt-0.5">Raw: ${this.formatBytes(node.item.sizeBytes)}</div>`;
+    } else if (!this.useGzip && node.item.gzipBytes) {
+      extraLine = `<div class="text-[#8b949e] text-xs mt-0.5">Gzip: ~${this.formatBytes(node.item.gzipBytes)}</div>`;
+    }
+
+    const chunkLine = node.item.chunks && node.item.chunks.length
+      ? `<div class="text-[#6e7681] text-[10px] mt-1 truncate max-w-xs">${node.item.chunks.join(', ')}</div>`
+      : (node.item.chunkIds && node.item.chunkIds.length
+        ? `<div class="text-[#6e7681] text-[10px] mt-1 truncate max-w-xs">${node.item.chunkIds.join(', ')}</div>`
+        : '');
+
+    const drillHint = hasDrill
+      ? `<div class="text-[#58a6ff] text-[10px] mt-1.5 font-semibold">Click to drill into ${node.item.children.length} modules</div>`
+      : (isModuleLevel ? '' : '');
+
     this.tooltip.innerHTML = `
       <div class="font-bold text-[#e6edf3] text-[13px] mb-1">${escapedName}</div>
-      <div class="text-[#8b949e] text-xs">Size: <span class="text-[#d29922] font-semibold">${this.formatBytes(node.item.sizeBytes)}</span> <span class="text-[#6e7681]">(${pct}%)</span></div>
-      ${node.item.gzipBytes ? `<div class="text-[#8b949e] text-xs mt-0.5">Gzip: ~${this.formatBytes(node.item.gzipBytes)}</div>` : ''}
-      ${node.item.chunks && node.item.chunks.length ? `<div class="text-[#6e7681] text-[10px] mt-1 truncate max-w-xs">${node.item.chunks.join(', ')}</div>` : ''}
+      <div class="text-[#8b949e] text-xs">${sizeLabel}: <span class="text-[#d29922] font-semibold">${this.formatBytes(size)}</span> <span class="text-[#6e7681]">(${pct}%)</span></div>
+      ${extraLine}
+      ${chunkLine}
+      ${drillHint}
     `;
-    this.tooltip.style.left = `${clientX + 14}px`;
-    this.tooltip.style.top = `${clientY + 14}px`;
-    this.tooltip.classList.remove('hidden');
+
+    const tt = this.tooltip;
+    const ttRect = tt.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = clientX + 14;
+    let top = clientY + 14;
+    if (left + 260 > vw) left = clientX - 260;
+    if (top + 120 > vh) top = clientY - 120;
+
+    tt.style.left = `${left}px`;
+    tt.style.top = `${top}px`;
+    tt.classList.remove('hidden');
   }
 
   escapeHTML(str) {
@@ -267,4 +370,117 @@ class TreemapEngine {
     this.highlightQuery = (query || '').toLowerCase().trim();
     this.draw();
   }
+
+  setGzipMode(useGzip) {
+    this.useGzip = useGzip;
+    if (this.currentLevel) {
+      this.computeLayout();
+      this.draw();
+    }
+  }
+}
+
+// Squarified treemap layout (Bruls, Huizing, van Wijk)
+function squarify(items, x, y, w, h, sizeOf) {
+  const total = items.reduce((s, i) => s + Math.max(0, sizeOf(i)), 0);
+  if (total === 0 || w <= 0 || h <= 0) return [];
+
+  const scaled = items
+    .filter(i => sizeOf(i) > 0)
+    .map(i => ({ item: i, area: (sizeOf(i) / total) * w * h }))
+    .sort((a, b) => b.area - a.area);
+
+  const nodes = [];
+  layoutStrip(scaled, 0, x, y, w, h, nodes);
+  return nodes;
+}
+
+function layoutStrip(items, start, x, y, w, h, nodes) {
+  if (start >= items.length) return;
+  if (items.length - start === 1) {
+    nodes.push({ item: items[start].item, x, y, w, h });
+    return;
+  }
+
+  const vertical = h <= w;
+  const side = vertical ? h : w;
+  let rowArea = 0;
+  let best = Infinity;
+  let end = start;
+
+  for (let i = start; i < items.length; i++) {
+    const testArea = rowArea + items[i].area;
+    const worst = worstRatio(items, start, i + 1, testArea, side);
+    if (worst <= best) {
+      best = worst;
+      end = i + 1;
+      rowArea = testArea;
+    } else {
+      break;
+    }
+  }
+
+  const rowSpan = rowArea / side;
+
+  let offset = 0;
+  for (let i = start; i < end; i++) {
+    const len = items[i].area / rowSpan;
+    if (vertical) {
+      nodes.push({ item: items[i].item, x: x + offset, y, w: rowSpan, h: len });
+      offset += len;
+    } else {
+      nodes.push({ item: items[i].item, x, y: y + offset, w: len, h: rowSpan });
+      offset += len;
+    }
+  }
+
+  if (vertical) {
+    layoutStrip(items, end, x + rowSpan, y, w - rowSpan, h, nodes);
+  } else {
+    layoutStrip(items, end, x, y + rowSpan, w, h - rowSpan, nodes);
+  }
+}
+
+function worstRatio(items, start, end, totalArea, side) {
+  if (totalArea === 0 || side === 0) return Infinity;
+  let worst = 0;
+  const s2 = side * side;
+  for (let i = start; i < end; i++) {
+    const a = items[i].area;
+    const r1 = (s2 * a) / (totalArea * totalArea);
+    const r2 = (totalArea * totalArea) / (s2 * a);
+    worst = Math.max(worst, Math.max(r1, r2));
+  }
+  return worst;
+}
+
+function shortLabel(name, isModule) {
+  if (isModule) {
+    const parts = name.split('/');
+    if (parts.length > 2) {
+      return '…/' + parts.slice(-2).join('/');
+    }
+    return name;
+  }
+  return name;
+}
+
+function shadeColor(hex, percent) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + Math.round(2.55 * percent)));
+  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + Math.round(2.55 * percent)));
+  const b = Math.min(255, Math.max(0, (num & 0xff) + Math.round(2.55 * percent)));
+  return `rgb(${r},${g},${b})`;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  if (w < 2 * r) r = w / 2;
+  if (h < 2 * r) r = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }

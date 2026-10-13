@@ -20,6 +20,7 @@ type BundleDTO struct {
 	Entrypoints   map[string]EntrypointDTO `json:"entrypoints"`
 	Chunks        []ChunkDTO               `json:"chunks"`
 	TopPackages   []PackageDTO             `json:"topPackages"`
+	Modules       []ModuleDTO              `json:"modules"`
 	TotalBytes    int64                    `json:"totalBytes"`
 	GzipEstimated bool                     `json:"gzipEstimated,omitempty"`
 }
@@ -50,6 +51,16 @@ type PackageDTO struct {
 	AsyncBytes   int64    `json:"asyncBytes"`
 	Chunks       []string `json:"chunks"`
 	IngressPath  string   `json:"ingressPath"`
+}
+
+// ModuleDTO represents a single source module for treemap drill-down.
+type ModuleDTO struct {
+	ID        string   `json:"id"`
+	Package   string   `json:"package"`
+	SizeBytes int64    `json:"sizeBytes"`
+	GzipBytes int64    `json:"gzipBytes"`
+	IsAppCode bool     `json:"isAppCode,omitempty"`
+	ChunkIDs  []string `json:"chunkIds"`
 }
 
 func (s *Server) handleGetBundle(w http.ResponseWriter, r *http.Request) {
@@ -207,12 +218,29 @@ func (s *Server) BundleToDTO(bundle *core.Bundle) *BundleDTO {
 		return strings.Compare(a.Name, b.Name)
 	})
 
+	modules := make([]ModuleDTO, 0, len(bundle.Modules))
+	for _, m := range bundle.Modules {
+		pkg := m.Package
+		if pkg == "" {
+			pkg = "(application code)"
+		}
+		modules = append(modules, ModuleDTO{
+			ID:        m.ID,
+			Package:   pkg,
+			SizeBytes: m.SizeBytes,
+			GzipBytes: m.GzipBytes,
+			IsAppCode: m.IsAppCode,
+			ChunkIDs:  m.ChunkIDs,
+		})
+	}
+
 	return &BundleDTO{
 		Bundler:       bundle.Metadata.Bundler,
 		StatsPath:     s.statsPath,
 		Entrypoints:   entrypoints,
 		Chunks:        chunks,
 		TopPackages:   topPackages,
+		Modules:       modules,
 		TotalBytes:    totalBytes,
 		GzipEstimated: bundle.GzipEstimated,
 	}

@@ -55,6 +55,40 @@ async function init() {
     selectPackage(pkg.name);
   };
 
+  // Breadcrumb navigation for drill-down
+  treemap.onDrillDown = (pkgName) => {
+    const bc = document.getElementById('treemap-breadcrumb');
+    const label = document.getElementById('breadcrumb-pkg');
+    if (bc) bc.classList.remove('hidden');
+    if (label) label.innerText = pkgName;
+  };
+
+  treemap.onDrillUp = (parentName, depth) => {
+    const bc = document.getElementById('treemap-breadcrumb');
+    if (depth === 0 && bc) bc.classList.add('hidden');
+  };
+
+  const bcRoot = document.getElementById('breadcrumb-root');
+  if (bcRoot) {
+    bcRoot.addEventListener('click', () => treemap.drillToRoot());
+  }
+
+  // Gzip/Raw toggle
+  const rawBtn = document.getElementById('treemap-size-raw');
+  const gzipBtn = document.getElementById('treemap-size-gzip');
+  if (rawBtn && gzipBtn) {
+    rawBtn.addEventListener('click', () => {
+      treemap.setGzipMode(false);
+      rawBtn.className = 'px-2.5 py-1 text-[11px] font-mono bg-[#21262d] text-[#e6edf3] border-r border-[#30363d] transition-colors';
+      gzipBtn.className = 'px-2.5 py-1 text-[11px] font-mono text-[#8b949e] hover:text-[#e6edf3] transition-colors';
+    });
+    gzipBtn.addEventListener('click', () => {
+      treemap.setGzipMode(true);
+      gzipBtn.className = 'px-2.5 py-1 text-[11px] font-mono bg-[#21262d] text-[#e6edf3] transition-colors';
+      rawBtn.className = 'px-2.5 py-1 text-[11px] font-mono text-[#8b949e] hover:text-[#e6edf3] border-r border-[#30363d] transition-colors';
+    });
+  }
+
   // Wire Tab buttons
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1097,7 +1131,27 @@ function renderBundle(data) {
   renderChunksInventory(chunks, totalBytes);
 
   currentPackages = packages;
-  treemap.setData(packages, totalBytes);
+
+  // Build module-by-package map for treemap drill-down
+  const modulesByPackage = {};
+  if (data.modules && data.modules.length > 0) {
+    for (const m of data.modules) {
+      const pkg = m.package || '(application code)';
+      if (!modulesByPackage[pkg]) modulesByPackage[pkg] = [];
+      modulesByPackage[pkg].push({
+        name: m.id,
+        sizeBytes: m.sizeBytes,
+        gzipBytes: m.gzipBytes,
+        chunkIds: m.chunkIds,
+      });
+    }
+    for (const pkg in modulesByPackage) {
+      modulesByPackage[pkg].sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
+    }
+  }
+
+  data._modulesByPackage = modulesByPackage;
+  treemap.setData(packages, totalBytes, modulesByPackage);
   applyFilterAndSearch();
 
   if (packages.length > 0) {
@@ -1221,8 +1275,9 @@ function renderChunksInventory(chunks, totalBytes) {
 
 function updateActiveChunks(chunkName) {
   if (!bundleData) return;
+  const mbp = bundleData._modulesByPackage || {};
   if (chunkName === 'all') {
-    treemap.setData(bundleData.topPackages || [], bundleData.totalBytes || 1);
+    treemap.setData(bundleData.topPackages || [], bundleData.totalBytes || 1, mbp);
     currentPackages = bundleData.topPackages || [];
     applyFilterAndSearch();
     return;
@@ -1230,7 +1285,7 @@ function updateActiveChunks(chunkName) {
 
   const filtered = (bundleData.topPackages || []).filter(p => p.chunks && p.chunks.includes(chunkName));
   const chunkTotal = (bundleData.chunks || []).find(c => c.name === chunkName)?.sizeBytes || 1;
-  treemap.setData(filtered, chunkTotal);
+  treemap.setData(filtered, chunkTotal, mbp);
   currentPackages = filtered;
   applyFilterAndSearch();
 
