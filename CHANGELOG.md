@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-13
+
+### Added
+
+- Studio treemap: squarified layout algorithm for near-square tile aspect
+  ratios, replacing the previous slice-and-dice layout. Click any package
+  tile to drill down into its constituent modules; right-click or use the
+  breadcrumb to navigate back. Raw/Gzip size toggle re-layouts the treemap.
+- Bundle API: expose module-level data (`modules` array) alongside the
+  existing `topPackages` for treemap drill-down and future tooling.
+
+### Changed
+
+- Extract `ApplyOverrides` helper to deduplicate repeated policy override
+  parsing in the gate CLI and MCP handler.
+- Extract `aggregatePackages` in diff engine to consolidate redundant
+  per-bundle iteration into a single pass.
+- Use `c.Context()` instead of `context.Background()` in CLI commands to
+  propagate cobra cancellation signals.
+
+### Fixed
+
+- Esbuild parser: deduplicate modules that appear in multiple output chunks,
+  preventing inflated size attribution.
+- `ResolveRef`: fail explicitly on unknown git refs instead of silently
+  passing through an unresolved string.
+- Gzip measurement: stream from file handle with pooled buffers instead of
+  materializing the full file in memory.
+- Vite parser: cache `fileSize` results to avoid redundant `os.Stat` syscalls.
+- CORS: restrict `Access-Control-Allow-Origin` to the bound host for
+  non-localhost listeners.
+- Worktree: cap build output capture at 64 KB to prevent unbounded memory
+  usage from verbose build processes.
+
 ## [2.2.0] - 2026-10-05
 
 ### Added

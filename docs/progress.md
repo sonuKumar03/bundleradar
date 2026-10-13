@@ -1,13 +1,20 @@
 # bundleradar progress
 
-Last updated: 2026-10-05
+Last updated: 2026-10-13
 
 Update this document when a milestone changes. Mark work complete only after
 implementation and verification; record remaining limitations separately.
 
 ## Current status
 
-BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.2.0`, which adds CSS/non-JS asset budget gating end-to-end (CLI, YAML, MCP, GitHub Action) and ships a post-v2.1.0 hardening sprint across Angular attribution, MCP contracts, Action baselines, and the Studio.
+BundleRadar v2 is officially released (`v2.0.0`) with a clean-slate hexagonal architecture centered on 5 orthogonal verbs: `scan`, `diff`, `gate`, `workspace`, and `mcp`. All CI pipelines, cross-platform build matrices, Go microbenchmarks, and GitHub Actions integrations are fully verified and passing. Latest release is `v2.3.0`, which upgrades the Studio treemap to a squarified layout with package-to-module drill-down and ships internal hardening across parsers, diff, and worktree.
+
+## v2.3.0
+
+- [x] Studio treemap: squarified layout algorithm (Bruls-Huizing-van Wijk) replacing slice-and-dice; click-to-drill-down from packages into modules with breadcrumb navigation; raw/gzip size toggle.
+- [x] Bundle API: expose module-level data (`modules` array) for treemap drill-down and tooling.
+- [x] Extract `ApplyOverrides` helper deduplicating policy override parsing in gate CLI and MCP handler.
+- [x] Esbuild parser module deduplication across multi-output chunks; Vite `fileSize` caching; streaming gzip with pooled buffers; stricter `ResolveRef`; bounded build output capture; CORS origin restriction; cobra context propagation.
 
 ## v2.2.0
 
