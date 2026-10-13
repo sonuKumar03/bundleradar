@@ -296,9 +296,14 @@ runs:
             if [ -n "$INPUT_BASELINE" ]; then GATE_FLAGS+=("--against" "$INPUT_BASELINE"); fi
             if [ -n "$MULTI_BASE_REF" ]; then GATE_FLAGS+=("--against" "$MULTI_BASE_REF"); fi
             if [ -n "$INPUT_BUILD_CMD" ]; then GATE_FLAGS+=("--build-cmd" "$INPUT_BUILD_CMD"); fi
-            if ! bundleradar gate "${GATE_FLAGS[@]}"; then
+            if [ -n "$INPUT_OUTPUT" ]; then GATE_FLAGS+=("-f" "markdown"); fi
+            if ! GATE_OUT=$(bundleradar gate "${GATE_FLAGS[@]}" 2>&1); then
               echo "BUDGET_FAILED=true" >> "$GITHUB_ENV"
+              if [ -n "$INPUT_OUTPUT" ]; then
+                printf '\n---\n\n%s\n' "$GATE_OUT" >> "$INPUT_OUTPUT"
+              fi
             fi
+            if [ -n "$GATE_OUT" ]; then echo "$GATE_OUT"; fi
           done <<< "$TARGET_STATS"
 
           exit 0
