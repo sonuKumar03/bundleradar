@@ -70,12 +70,16 @@ Micro-drift: 70.31 KB across sub-threshold updates
 
 ## 📦 Installation
 
-```bash
-# One-line installer (macOS, Linux, Windows WSL)
-curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/install.sh | sh
+**Install** (macOS, Linux, Windows WSL):
 
-# Or via Go
-go install github.com/sonuKumar03/bundleradar@latest
+```bash
+curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/install.sh | sh
+```
+
+**Uninstall** (removes the binary and any installed agent skills):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/uninstall.sh | sh
 ```
 
 Precompiled binaries for all platforms are on [**GitHub Releases**](https://github.com/sonuKumar03/bundleradar/releases/latest).
@@ -88,17 +92,27 @@ Precompiled binaries for all platforms are on [**GitHub Releases**](https://gith
 
 Generate a stats file for your bundler:
 
+**Angular**
+
 ```bash
-# Angular
 ng build --configuration production --stats-json
+```
 
-# esbuild
+**esbuild**
+
+```bash
 esbuild src/index.ts --bundle --metafile=meta.json --outdir=dist
+```
 
-# Vite
+**Vite**
+
+```bash
 npx vite build -- --stats
+```
 
-# Webpack
+**Webpack**
+
+```bash
 npx webpack --json=stats.json
 ```
 *This produces a stats/meta JSON file that bundleradar auto-detects.*
