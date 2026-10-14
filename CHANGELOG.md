@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-10-14
+
+### Changed
+
+- Docs: trim README by removing verbose sections covered in the docs site
+  (collapsed command reference, CI inputs table, installation binaries list,
+  and contributing section).
+- Docs: update SKILL.md for universal bundler support.
+- Docs: add CLI and GitHub Action cheatsheet (`docs/cheatsheet.md`).
+
+## [2.4.0] - 2026-10-14
+
+### Added
+
+- Esbuild parser: `--why` import chain tracing via shared BFS ingress path
+  builder extracted from the Angular parser.
+- Webpack parser: `--why` import chain tracing using `issuerPath` fields,
+  module deduplication across chunks, and top-level asset parsing.
+- Vite parser: process chunk assets, build partial ingress paths from
+  chunk-level imports via BFS, and extract installed package versions.
+- Persistent build history: JSON file persistence for build checkpoints
+  across server restarts (`--history-file` flag, default
+  `.bundleradar-history.json`).
+- CLI `history` subcommand: `history save`, `history list`, `history show`
+  for recording and inspecting build history without the server.
+- Studio: Trends tab with inline SVG line chart showing Initial JS, Total JS,
+  and Gzip estimates across checkpoints.
+- GitHub Action: `history` and `history-file` inputs for recording build
+  history checkpoints in CI.
+
+### Fixed
+
+- Gzip estimation: change binary file ratio from 0.0 to 1.0 so images and
+  other pre-compressed files report realistic gzip sizes.
+
+### Changed
+
+- Docs site and README rebranded from Angular-only to universal bundler
+  support (Angular, esbuild, Vite, Webpack).
+- GitHub Action renamed from "Angular Bundle Analyzer" to "Universal Bundle
+  Analyzer".
+
 ## [2.3.1] - 2026-10-13
 
 ### Fixed
@@ -139,7 +181,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.3.1...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.1.0...v2.2.0
