@@ -225,3 +225,51 @@ func TestHandleGateLoadsConfigAndAllowsExplicitOverride(t *testing.T) {
 		t.Fatal("explicit max_initial should override the config limit")
 	}
 }
+
+func TestHandleGateLoadsConfigNextToStatsFile(t *testing.T) {
+	src, err := os.ReadFile("../../testdata/minimal/stats.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectDir := t.TempDir()
+	statsPath := filepath.Join(projectDir, "stats.json")
+	if err := os.WriteFile(statsPath, src, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, ".bundleradar.yml"), []byte("budgets:\n  initial_js_max: 1B\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldDir) })
+
+	res, err := mcp.NewServer().GetTool("bundle_gate").Handler(context.Background(), mcpspec.CallToolRequest{
+		Params: mcpspec.CallToolParams{Name: "bundle_gate", Arguments: map[string]any{"path": statsPath}},
+	})
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("gate call failed: res=%+v err=%v", res, err)
+	}
+	if text := res.Content[0].(mcpspec.TextContent).Text; !strings.Contains(text, `"rule": "MAX_INITIAL_SIZE"`) {
+		t.Fatalf("config beside the stats file was not applied: %s", text)
+	}
+}
+
+func TestMCPToolsRejectUnknownEntry(t *testing.T) {
+	statsPath, err := filepath.Abs("../../testdata/minimal/stats.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"bundle_scan", "bundle_gate"} {
+		res, err := mcp.NewServer().GetTool(name).Handler(context.Background(), mcpspec.CallToolRequest{
+			Params: mcpspec.CallToolParams{Name: name, Arguments: map[string]any{"path": statsPath, "entry": "does/not/exist.ts"}},
+		})
+		if err != nil || res == nil || !res.IsError {
+			t.Fatalf("%s: want tool error for unknown entry, got res=%+v err=%v", name, res, err)
+		}
+	}
+}

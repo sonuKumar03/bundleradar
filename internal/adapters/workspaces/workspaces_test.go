@@ -188,3 +188,26 @@ func TestNxResolver_EndToEndAngularScan(t *testing.T) {
 		}
 	}
 }
+
+func TestNxResolverDoesNotInventBrowserSubdirForUnbuiltProjects(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "nx.json"), []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	projectDir := filepath.Join(root, "apps", "web")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	project := `{"name":"web","projectType":"application","targets":{"build":{"options":{"outputPath":"out/web"}}}}`
+	if err := os.WriteFile(filepath.Join(projectDir, "project.json"), []byte(project), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	targets, err := (&workspaces.NxResolver{}).Resolve(context.Background(), root)
+	if err != nil || len(targets) != 1 {
+		t.Fatalf("resolve: targets=%+v err=%v", targets, err)
+	}
+	if want := filepath.Join(root, "out", "web"); targets[0].DistPath != want {
+		t.Fatalf("dist = %q, want %q", targets[0].DistPath, want)
+	}
+}

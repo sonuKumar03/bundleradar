@@ -1,42 +1,67 @@
 package parsers
 
-// buildEsbuildIngressPaths performs a BFS over esbuild metafile inputs to
-// compute the shortest import chain from any root to every reachable module.
-// It follows "import-statement" and "dynamic-import" edges.
+import "github.com/sonuKumar03/bundleradar/internal/core"
+
+// buildEsbuildIngressPaths computes an import chain from the roots to every
+// reachable module. Static ("import-statement") chains are preferred so a
+// path explains why a module ships in the initial bundle; only modules that
+// are unreachable statically fall back to chains through "dynamic-import".
 func buildEsbuildIngressPaths(inputs map[string]EsbuildInput, rootInputs []string) map[string][]string {
 	ingressPaths := make(map[string][]string)
-	bfsQueue := make([]string, 0, len(rootInputs))
+	order := make([]string, 0, len(rootInputs))
 	for _, r := range rootInputs {
 		if _, seen := ingressPaths[r]; !seen {
 			ingressPaths[r] = []string{r}
-			bfsQueue = append(bfsQueue, r)
+			order = append(order, r)
 		}
 	}
 
-	for len(bfsQueue) > 0 {
-		curr := bfsQueue[0]
-		bfsQueue = bfsQueue[1:]
-		currPath := ingressPaths[curr]
-
-		if inData, ok := inputs[curr]; ok {
+	expand := func(allowDynamic bool) {
+		queue := append([]string(nil), order...)
+		for len(queue) > 0 {
+			curr := queue[0]
+			queue = queue[1:]
+			currPath := ingressPaths[curr]
+			inData, ok := inputs[curr]
+			if !ok {
+				continue
+			}
 			for _, imp := range inData.Imports {
-				if imp.Kind != "import-statement" && imp.Kind != "dynamic-import" {
+				if imp.Kind != "import-statement" && !(allowDynamic && imp.Kind == "dynamic-import") {
 					continue
 				}
 				target := imp.Path
 				if target == "" {
 					continue
 				}
-				if _, seen := ingressPaths[target]; !seen {
-					nextPath := make([]string, len(currPath)+1)
-					copy(nextPath, currPath)
-					nextPath[len(currPath)] = target
-					ingressPaths[target] = nextPath
-					bfsQueue = append(bfsQueue, target)
+				if _, seen := ingressPaths[target]; seen {
+					continue
 				}
+				nextPath := make([]string, len(currPath)+1)
+				copy(nextPath, currPath)
+				nextPath[len(currPath)] = target
+				ingressPaths[target] = nextPath
+				order = append(order, target)
+				queue = append(queue, target)
 			}
 		}
 	}
 
+	expand(false)
+	expand(true)
 	return ingressPaths
+}
+
+// buildImportGraph records the module import edges of an esbuild metafile.
+func buildImportGraph(inputs map[string]EsbuildInput, rootInputs []string) *core.ImportGraph {
+	g := &core.ImportGraph{Roots: rootInputs, Edges: make(map[string][]core.ImportEdge, len(inputs))}
+	for id, in := range inputs {
+		for _, imp := range in.Imports {
+			if imp.Path == "" || (imp.Kind != "import-statement" && imp.Kind != "dynamic-import") {
+				continue
+			}
+			g.Edges[id] = append(g.Edges[id], core.ImportEdge{To: imp.Path, Dynamic: imp.Kind == "dynamic-import"})
+		}
+	}
+	return g
 }

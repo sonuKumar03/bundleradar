@@ -268,7 +268,7 @@ func computeDiff(baseCP, targetCP *BuildCheckpoint) *DiffDTO {
 	baseBundle := bundleFromCheckpoint(baseCP)
 	targetBundle := bundleFromCheckpoint(targetCP)
 
-	result := diff.Calculate(baseBundle, targetBundle, diff.Options{})
+	result := diff.Calculate(baseBundle, targetBundle, diff.Options{IncludeUnchanged: true})
 
 	basePkgs := make(map[string]PackageDTO)
 	if baseCP.Bundle != nil {

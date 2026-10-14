@@ -82,10 +82,12 @@ The MCP server provides 4 typed tools formatted for LLM consumption:
 
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
-| `bundle_scan` | `path` (required), `dist`, `bundler`, `top` | Inspect bundle sizes, breakdown, and package dependencies. |
-| `bundle_diff` | `path` (required), `against` (required), `drift_threshold` | Compare against a local stats/metafile/manifest file or BundleRadar scan JSON file. Git refs are not supported by MCP. |
-| `bundle_gate` | `path` (required), `against`, `max_initial`, `max_total`, `max_css`, `max_assets`, `max_initial_delta`, `forbid` (array) | Validate bundle sizes, CSS/asset budgets, and architecture rules against policy budgets in CI; `against` accepts a local baseline file, not a git ref. |
+| `bundle_scan` | `path` (required), `dist`, `bundler`, `entry`, `top` | Inspect bundle sizes, breakdown, and package dependencies. |
+| `bundle_diff` | `path` (required), `against` (required), `drift_threshold`, `dist`, `bundler`, `entry`, `include_unchanged` | Compare against a local stats/metafile/manifest file or BundleRadar scan JSON file. Git refs are not supported by MCP. |
+| `bundle_gate` | `path` (required), `against`, `max_initial`, `max_total`, `max_css`, `max_assets`, `max_initial_delta`, `forbid` (array), `dist`, `bundler`, `entry` | Validate bundle sizes, CSS/asset budgets, and architecture rules against policy budgets in CI; `against` accepts a local baseline file, not a git ref. |
 | `workspace_summary`| `root` | Lists discovered application target names and stats/dist paths; it does not scan bundle contents. |
+
+`bundle_gate` reads `.bundleradar.yml` from the stats file's directory (or a parent) first, then from the server's working directory, and takes `scan.dist`, `scan.bundler` and `scan.entry` defaults from it.
 
 ### Exposed MCP Resources
 
@@ -182,6 +184,8 @@ The CLI emits the following observed fields with `--format json`. These outputs 
 
 ### Trace JSON (via `--why`)
 
+Ingress trails prefer static import chains from the entry; a chain through a dynamic import is used only when a module is not statically reachable.
+
 | Field | Meaning |
 | :--- | :--- |
 | `target` | Queried target package or module path. |
@@ -192,6 +196,8 @@ The CLI emits the following observed fields with `--format json`. These outputs 
 | `chains[].initial` | Whether the output chunk is in initial bootstrap closure. |
 | `chains[].path` | Ordered array of module file paths from root to target. |
 | `chains[].bytesInChunk` | Contributed bytes inside this specific chunk. |
+| `retainedInitialBytes` | Initial JS that would drop out if nothing else statically imported the target (esbuild/Angular stats only). |
+| `importers[]` | Static importers with `module`, `firstParty`, and `savingBytes`, the initial JS saved by removing only that import (0 when other importers keep the target in). |
 
 ### Diff JSON (`bundleradar diff -f json`)
 
@@ -199,9 +205,10 @@ The CLI emits the following observed fields with `--format json`. These outputs 
 | :--- | :--- |
 | `summary` | Base/head initial, lazy, and total bytes, with `initialDeltaBytes`, `lazyDeltaBytes`, and `totalDeltaBytes`. |
 | `entrypoints.<name>` | Per-entrypoint `initialDeltaBytes`, `initialGzipDeltaBytes`, and `asyncDeltaBytes`. |
-| `packages[]` | Package changes with `name`, `deltaBytes`, `gzipDeltaBytes`, `baseBytes`, `currBytes`, and `status`. |
-| `unchangedPackages[]` | Optional list of unchanged package contributions. |
-| `addedChunks[]`, `removedChunks[]` | Chunks present only in the head or base bundle. |
+| `packages[]` | Package changes with `name`, `deltaBytes`, `gzipDeltaBytes`, `baseBytes`, `currBytes`, `status`, and `initialDeltaBytes`. A package whose total is unchanged but that moved into (or out of) initial chunks has status `PROMOTED` (or `DEFERRED`). |
+| `firstParty[]` | First-party changes grouped by workspace project (`apps/<name>`, `libs/<name>`), with the same delta fields. |
+| `unchangedCount`, `unchangedPackages[]` | Count of unchanged packages; the list is only populated with `include_unchanged` (MCP) or markdown output. |
+| `addedChunks[]`, `removedChunks[]`, `changedChunks[]` | Chunks present only in one bundle (without module lists). Chunks whose content-hashed names differ but match by name or module overlap are reported in `changedChunks`. |
 | `microDriftBytes`, `attributions[]` | Collapsed small changes and source-level regression explanations. |
 
 ### Gate JSON (`bundleradar gate -f json`)

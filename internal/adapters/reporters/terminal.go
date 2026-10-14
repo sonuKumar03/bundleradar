@@ -87,6 +87,10 @@ func (r *TerminalReporter) Render(ctx context.Context, w io.Writer, data any) er
 					status = "➕"
 				} else if pkg.CurrBytes == 0 {
 					status = "➖"
+				} else if pkg.Status == diff.StatusPromoted {
+					status = "⬆️"
+				} else if pkg.Status == diff.StatusDeferred {
+					status = "⬇️"
 				}
 				sign := "+"
 				if pkg.DeltaBytes < 0 {
@@ -96,10 +100,25 @@ func (r *TerminalReporter) Render(ctx context.Context, w io.Writer, data any) er
 				if len(pkg.ChunkNames) > 0 {
 					chunkInfo = fmt.Sprintf(" (%s)", strings.Join(pkg.ChunkNames, ", "))
 				}
+				if pkg.InitialDelta != 0 && pkg.InitialDelta != pkg.DeltaBytes {
+					chunkInfo += fmt.Sprintf(" [initial %s]", formatDelta(pkg.InitialDelta))
+				}
 				fmt.Fprintf(&sb, "%s %-22s %10s%s\n", status, pkg.Name, sign+formatBytes(pkg.DeltaBytes), chunkInfo)
 				if pkg.ImportPath != "" {
 					fmt.Fprintf(&sb, "   • Import path: %s\n", pkg.ImportPath)
 				}
+			}
+		}
+
+		if len(v.FirstParty) > 0 {
+			sb.WriteString("\nFIRST-PARTY CODE\n")
+			sb.WriteString("-------------------------------------------------------------\n")
+			for i, fp := range v.FirstParty {
+				if i == 5 {
+					fmt.Fprintf(&sb, "   … and %d more\n", len(v.FirstParty)-i)
+					break
+				}
+				fmt.Fprintf(&sb, "📁 %-28s total %s, initial %s\n", fp.Name, formatDelta(fp.DeltaBytes), formatDelta(fp.InitialDelta))
 			}
 		}
 

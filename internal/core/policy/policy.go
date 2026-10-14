@@ -52,6 +52,14 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 	// 1. MaxInitial check (per entrypoint and overall)
 	if p.MaxInitial != nil {
 		limit := *p.MaxInitial
+		if initialUnresolved(bundle) {
+			res.Passed = false
+			res.Violations = append(res.Violations, Violation{
+				Severity: "error",
+				Rule:     "INITIAL_SIZE_UNRESOLVED",
+				Message:  "No initial JS roots were detected (initial size is 0 while the bundle contains JS); the initial budget cannot be evaluated. Check index.html/--dist or the stats file.",
+			})
+		}
 		for name, ep := range bundle.Entrypoints {
 			if ep.InitialBytes > limit {
 				res.Passed = false
@@ -238,4 +246,21 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 	}
 
 	return res
+}
+
+// initialUnresolved reports a bundle that has JS output but no initial bytes
+// on any entrypoint, which means root detection failed rather than the app
+// genuinely shipping zero initial JS.
+func initialUnresolved(bundle *core.Bundle) bool {
+	var js, initial int64
+	for _, c := range bundle.Chunks {
+		if strings.HasSuffix(strings.ToLower(c.Path), ".css") {
+			continue
+		}
+		js += c.SizeBytes
+	}
+	for _, ep := range bundle.Entrypoints {
+		initial += ep.InitialBytes
+	}
+	return js > 0 && initial == 0
 }

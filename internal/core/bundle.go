@@ -2,6 +2,7 @@ package core
 
 import (
 	"cmp"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -31,6 +32,9 @@ type Bundle struct {
 	// GzipEstimated is true when any chunk or asset gzip size was approximated
 	// from a ratio because the emitted artifact was not available on disk.
 	GzipEstimated bool `json:"gzipEstimated,omitempty"`
+
+	// Graph is the module import graph when the bundler's stats expose it.
+	Graph *ImportGraph `json:"-"`
 
 	chunkIndex  map[string]int
 	moduleIndex map[string]int
@@ -364,4 +368,32 @@ func (b *Bundle) ResolveEntrypoint(query string) (*Entrypoint, bool) {
 	}
 
 	return nil, false
+}
+
+// ScopeToEntrypoint returns a copy of the bundle with a single entrypoint and
+// only the modules reachable through its chunks. Chunks are kept whole so
+// whole-build totals (TotalJS, lazy, CSS) stay comparable across scoped runs.
+func (b *Bundle) ScopeToEntrypoint(query string) (*Bundle, error) {
+	ep, ok := b.ResolveEntrypoint(query)
+	if !ok {
+		return nil, fmt.Errorf("entrypoint %q not found in bundle", query)
+	}
+	scoped := NewBundle(b.Metadata)
+	scoped.GzipEstimated = b.GzipEstimated
+	scoped.AddEntrypoint(ep.Name, *ep)
+	for _, chunk := range b.Chunks {
+		scoped.AddChunk(chunk)
+	}
+	for _, asset := range b.Assets {
+		scoped.AddAsset(asset)
+	}
+	for _, mod := range b.Modules {
+		for _, id := range mod.ChunkIDs {
+			if slices.Contains(ep.ChunkIDs, id) || len(b.Entrypoints) == 1 {
+				scoped.AddModule(mod)
+				break
+			}
+		}
+	}
+	return scoped, nil
 }

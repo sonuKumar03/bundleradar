@@ -76,6 +76,7 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	slices.Sort(sortedOutputs)
 
 	seenModules := make(map[string]*core.Module)
+	packageVersions := make(map[string]string)
 
 	// Build ingress paths from entrypoint roots
 	rootInputs := make([]string, 0)
@@ -86,6 +87,7 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		}
 	}
 	ingressPaths := buildEsbuildIngressPaths(meta.Inputs, rootInputs)
+	bundle.Graph = buildImportGraph(meta.Inputs, rootInputs)
 
 	// Process outputs as chunks
 	for _, outPath := range sortedOutputs {
@@ -147,10 +149,11 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 			if existing, ok := seenModules[inPath]; ok {
 				existing.ChunkIDs = append(existing.ChunkIDs, chunkID)
+				existing.ChunkBytes[chunkID] = inBytes.BytesInOutput
 				existing.SizeBytes += inBytes.BytesInOutput
 				existing.GzipBytes += estimateGzip(inBytes.BytesInOutput, inPath)
 			} else {
-				pkgName := extractPackageName(inPath)
+				pkgName, pkgRoot := extractPackageLocation(inPath)
 				var p []string
 				if path, ok := ingressPaths[inPath]; ok {
 					p = path
@@ -158,10 +161,12 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				mod := &core.Module{
 					ID:           inPath,
 					Package:      pkgName,
+					Version:      installedPackageVersion(pkgRoot, target.StatsPath, packageVersions),
 					SizeBytes:    inBytes.BytesInOutput,
 					GzipBytes:    estimateGzip(inBytes.BytesInOutput, inPath),
 					IsAppCode:    pkgName == "",
 					ChunkIDs:     []string{chunkID},
+					ChunkBytes:   map[string]int64{chunkID: inBytes.BytesInOutput},
 					IngressPaths: p,
 				}
 				seenModules[inPath] = mod
@@ -237,6 +242,7 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				}
 			}
 		}
+
 		bundle.Entrypoints[out.EntryPoint] = ep
 	}
 

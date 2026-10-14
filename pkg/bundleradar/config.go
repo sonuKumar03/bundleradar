@@ -12,15 +12,26 @@ import (
 
 // Config represents the .bundleradar.yml configuration schema.
 type Config struct {
+	Scan    ConfigScan    `yaml:"scan,omitempty"`
 	Budgets ConfigBudgets `yaml:"budgets,omitempty"`
 	Rules   ConfigRules   `yaml:"rules,omitempty"`
+}
+
+// ConfigScan holds default scan inputs so CI and agents don't need flags.
+// Relative dist paths resolve against the directory of the config file.
+type ConfigScan struct {
+	Bundler string `yaml:"bundler,omitempty"`
+	Dist    string `yaml:"dist,omitempty"`
+	Entry   string `yaml:"entry,omitempty"`
 }
 
 // ConfigBudgets holds threshold limits for bundle metrics and deltas.
 type ConfigBudgets struct {
 	InitialJSMax    string `yaml:"initial_js_max,omitempty"`
+	MaxLazy         string `yaml:"max_lazy,omitempty"`
 	TotalMax        string `yaml:"total_max,omitempty"`
 	MaxInitialDelta string `yaml:"max_initial_delta,omitempty"`
+	MaxTotalDelta   string `yaml:"max_total_delta,omitempty"`
 	MaxCSS          string `yaml:"max_css,omitempty"`
 	MaxAssets       string `yaml:"max_assets,omitempty"`
 }
@@ -28,13 +39,43 @@ type ConfigBudgets struct {
 // ConfigRules holds architectural lint rules for bundled packages.
 type ConfigRules struct {
 	DisallowPackages []string `yaml:"disallow_packages,omitempty"`
+	// DetectDuplicatePackages defaults to true when omitted.
+	DetectDuplicatePackages *bool `yaml:"detect_duplicate_packages,omitempty"`
+}
+
+// ResolvePath resolves a config-relative path against the config file's directory.
+func ResolvePath(configPath, p string) string {
+	if p == "" || filepath.IsAbs(p) || configPath == "" {
+		return p
+	}
+	return filepath.Join(filepath.Dir(configPath), p)
 }
 
 // ToPolicy converts config budgets and rules to an evaluation Policy.
 func (c *Config) ToPolicy() (Policy, error) {
 	var pol Policy
+	pol.DetectDuplicatePkgs = true
 	if c == nil {
 		return pol, nil
+	}
+	if c.Rules.DetectDuplicatePackages != nil {
+		pol.DetectDuplicatePkgs = *c.Rules.DetectDuplicatePackages
+	}
+
+	if c.Budgets.MaxLazy != "" {
+		val, err := ParseBytes(c.Budgets.MaxLazy)
+		if err != nil {
+			return pol, fmt.Errorf("config max_lazy: %w", err)
+		}
+		pol.MaxLazy = &val
+	}
+
+	if c.Budgets.MaxTotalDelta != "" {
+		val, err := ParseBytes(c.Budgets.MaxTotalDelta)
+		if err != nil {
+			return pol, fmt.Errorf("config max_total_delta: %w", err)
+		}
+		pol.MaxTotalDelta = &val
 	}
 
 	if c.Budgets.InitialJSMax != "" {

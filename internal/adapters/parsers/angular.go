@@ -114,22 +114,24 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		}
 
 		baseName := filepath.Base(outPath)
-		lowerBase := strings.ToLower(baseName)
-		lowerEntry := strings.ToLower(out.EntryPoint)
-
-		isRoot := initialFiles[baseName] || initialFiles[outPath]
-		if len(initialFiles) == 0 && (ext == ".js" || ext == ".mjs") && (strings.HasPrefix(lowerBase, "main") || strings.HasSuffix(lowerEntry, "main.ts")) {
-			isRoot = true
-		} else if len(initialFiles) == 0 && (ext == ".js" || ext == ".mjs") && (strings.HasPrefix(lowerBase, "polyfills") || strings.Contains(lowerEntry, "polyfills")) {
-			isRoot = true
-		} else if len(initialFiles) == 0 && ext == ".css" && (strings.HasPrefix(lowerBase, "styles") || strings.Contains(lowerEntry, "styles")) {
-			isRoot = true
-		}
-
-		if isRoot {
+		if initialFiles[baseName] || initialFiles[outPath] {
 			initialRoots = append(initialRoots, outPath)
 			isInitial[outPath] = true
 			isInitial[baseName] = true
+		}
+	}
+
+	// index.html may reference none of the emitted files (deploy-URL
+	// placeholders, missing index.html, hashed names that differ): derive the
+	// roots from the metafile itself instead of reporting zero initial JS.
+	if len(initialRoots) == 0 {
+		for _, outPath := range sortedOutputs {
+			out := meta.Outputs[outPath]
+			if isAngularRootOutput(outPath, out) {
+				initialRoots = append(initialRoots, outPath)
+				isInitial[outPath] = true
+				isInitial[filepath.Base(outPath)] = true
+			}
 		}
 	}
 
@@ -203,6 +205,7 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	}
 
 	ingressPaths := buildEsbuildIngressPaths(meta.Inputs, rootInputs)
+	bundle.Graph = buildImportGraph(meta.Inputs, rootInputs)
 
 	seenModules := make(map[string]*core.Module)
 	packageVersions := make(map[string]string)
@@ -387,4 +390,31 @@ func inferMimeType(ext string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+// isAngularRootOutput reports whether an output is an Angular initial root
+// (main bundle, polyfills, or global styles) judged from the metafile alone.
+func isAngularRootOutput(outPath string, out EsbuildOutput) bool {
+	ext := strings.ToLower(filepath.Ext(outPath))
+	lowerBase := strings.ToLower(filepath.Base(outPath))
+	entry := strings.ToLower(out.EntryPoint)
+
+	if ext == ".css" {
+		return strings.Contains(entry, "angular:styles/global") ||
+			(entry == "" && strings.HasPrefix(lowerBase, "styles"))
+	}
+	if ext != ".js" && ext != ".mjs" {
+		return false
+	}
+	if entry == "main.ts" || strings.HasSuffix(entry, "/main.ts") ||
+		strings.HasSuffix(entry, "/main.js") || strings.Contains(entry, "polyfills") ||
+		strings.Contains(entry, "angular:script/global") {
+		return true
+	}
+	for inPath := range out.Inputs {
+		if strings.HasPrefix(inPath, "angular:polyfills") {
+			return true
+		}
+	}
+	return entry == "" && (strings.HasPrefix(lowerBase, "main") || strings.HasPrefix(lowerBase, "polyfills"))
 }

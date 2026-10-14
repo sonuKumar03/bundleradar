@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	mcpspec "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -127,6 +128,7 @@ func handleScan(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	path := req.GetString("path", "")
 	dist := req.GetString("dist", "")
 	bundler := req.GetString("bundler", "")
+	entry := req.GetString("entry", "")
 	top := req.GetInt("top", 10)
 
 	client := bundleradar.New()
@@ -137,6 +139,11 @@ func handleScan(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	})
 	if err != nil {
 		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan bundle: %v", err)), nil
+	}
+	if entry != "" {
+		if bundle, err = bundle.ScopeToEntrypoint(entry); err != nil {
+			return mcpspec.NewToolResultError(err.Error()), nil
+		}
 	}
 
 	result := map[string]any{
@@ -163,18 +170,34 @@ func handleDiff(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		return mcpspec.NewToolResultError(fmt.Sprintf("Invalid drift_threshold: %v", err)), nil
 	}
 
+	dist := req.GetString("dist", "")
+	bundler := req.GetString("bundler", "")
+	entry := req.GetString("entry", "")
+
 	client := bundleradar.New()
-	currentBundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path})
+	currentBundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path, DistPath: dist, Bundler: bundler})
 	if err != nil {
 		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan current bundle: %v", err)), nil
 	}
 
-	baseBundle, err := scanBaseline(ctx, client, against)
+	baseBundle, err := scanBaseline(ctx, client, against, bundler)
 	if err != nil {
 		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan baseline bundle: %v", err)), nil
 	}
 
-	diffResult := client.Diff(baseBundle, currentBundle, diff.Options{DriftThreshold: driftBytes})
+	if entry != "" {
+		if currentBundle, err = currentBundle.ScopeToEntrypoint(entry); err != nil {
+			return mcpspec.NewToolResultError(err.Error()), nil
+		}
+		if baseBundle, err = baseBundle.ScopeToEntrypoint(entry); err != nil {
+			return mcpspec.NewToolResultError(fmt.Sprintf("baseline: %v", err)), nil
+		}
+	}
+
+	diffResult := client.Diff(baseBundle, currentBundle, diff.Options{
+		DriftThreshold:   driftBytes,
+		IncludeUnchanged: req.GetBool("include_unchanged", false),
+	})
 
 	data, err := json.MarshalIndent(diffResult, "", "  ")
 	if err != nil {
@@ -198,25 +221,50 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		return mcpspec.NewToolResultError("delta budgets require a readable baseline in against"), nil
 	}
 
+	cfg, cfgPath, err := loadConfigFor(path)
+	if err != nil {
+		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to load config: %v", err)), nil
+	}
+	dist := req.GetString("dist", "")
+	bundler := req.GetString("bundler", "")
+	entry := req.GetString("entry", "")
+	if cfg != nil {
+		if dist == "" && cfg.Scan.Dist != "" {
+			dist = bundleradar.ResolvePath(cfgPath, cfg.Scan.Dist)
+		}
+		if bundler == "" {
+			bundler = cfg.Scan.Bundler
+		}
+		if entry == "" {
+			entry = cfg.Scan.Entry
+		}
+	}
+
 	client := bundleradar.New()
-	bundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path})
+	bundle, err := client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path, DistPath: dist, Bundler: bundler})
 	if err != nil {
 		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan bundle: %v", err)), nil
+	}
+	if entry != "" {
+		if bundle, err = bundle.ScopeToEntrypoint(entry); err != nil {
+			return mcpspec.NewToolResultError(err.Error()), nil
+		}
 	}
 
 	var d *bundleradar.BundleDiff
 	if against != "" {
-		baseBundle, err := scanBaseline(ctx, client, against)
+		baseBundle, err := scanBaseline(ctx, client, against, bundler)
 		if err != nil {
 			return mcpspec.NewToolResultError(fmt.Sprintf("Failed to scan baseline bundle: %v", err)), nil
+		}
+		if entry != "" {
+			if baseBundle, err = baseBundle.ScopeToEntrypoint(entry); err != nil {
+				return mcpspec.NewToolResultError(fmt.Sprintf("baseline: %v", err)), nil
+			}
 		}
 		d = client.Diff(baseBundle, bundle, diff.Options{})
 	}
 
-	cfg, _, err := bundleradar.FindAndLoadConfig("")
-	if err != nil {
-		return mcpspec.NewToolResultError(fmt.Sprintf("Failed to load config: %v", err)), nil
-	}
 	pol, err := cfg.ToPolicy()
 	if err != nil {
 		return mcpspec.NewToolResultError(fmt.Sprintf("Invalid config: %v", err)), nil
@@ -237,7 +285,6 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 			pol.ForbiddenPkgs = forbidList
 		}
 	}
-	pol.DetectDuplicatePkgs = true
 
 	evalRes := client.Gate(bundle, d, pol)
 
@@ -248,7 +295,18 @@ func handleGate(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 	return mcpspec.NewToolResultText(string(data)), nil
 }
 
-func scanBaseline(ctx context.Context, client *bundleradar.Client, path string) (*core.Bundle, error) {
+// loadConfigFor finds .bundleradar.yml next to (or above) the stats file, then
+// falls back to the server's working directory.
+func loadConfigFor(statsPath string) (*bundleradar.Config, string, error) {
+	if abs, err := filepath.Abs(statsPath); err == nil {
+		if cfg, p, err := bundleradar.FindAndLoadConfig(filepath.Dir(abs)); err != nil || cfg != nil {
+			return cfg, p, err
+		}
+	}
+	return bundleradar.FindAndLoadConfig("")
+}
+
+func scanBaseline(ctx context.Context, client *bundleradar.Client, path, bundler string) (*core.Bundle, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open baseline file %q (MCP accepts local files, not git refs): %w", path, err)
@@ -266,7 +324,7 @@ func scanBaseline(ctx context.Context, client *bundleradar.Client, path string) 
 			return &baseline, nil
 		}
 	}
-	return client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path})
+	return client.Scan(ctx, bundleradar.ScanOptions{StatsPath: path, Bundler: bundler})
 }
 
 func handleWorkspaceSummary(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.CallToolResult, error) {

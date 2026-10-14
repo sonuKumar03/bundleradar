@@ -58,7 +58,8 @@ func newDiffCommand() *cobra.Command {
 			}
 
 			diffResult := client.Diff(baseBundle, currentBundle, diff.Options{
-				DriftThreshold: driftBytes,
+				DriftThreshold:   driftBytes,
+				IncludeUnchanged: format == "markdown" || format == "github-pr",
 			})
 
 			w, cleanup, err := getOutputWriter(c, output)

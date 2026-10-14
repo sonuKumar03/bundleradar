@@ -178,3 +178,104 @@ func TestAngularSharedModuleCountsBytesInEachOutput(t *testing.T) {
 	}
 	t.Fatal("shared lodash module missing from parsed bundle")
 }
+
+func TestAngularRootsFallBackWhenIndexHTMLMatchesNothing(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"node_modules/@angular/core/index.js":{}},"outputs":{"main-AAA.js":{"bytes":100,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":100}}},"lazy-BBB.js":{"bytes":900,"entryPoint":"src/app/lazy.module.ts","inputs":{"src/app/lazy.module.ts":{"bytesInOutput":900}}}}}`)
+	dir := filepath.Dir(stats)
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte(`<script src="SD_FE_DEPLOY_URLmain.js"></script><link href="https://cdn.example.com/font.css">`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := bundle.Entrypoints["main"].InitialBytes; got != 100 {
+		t.Fatalf("initial bytes = %d, want 100 (main only, lazy route excluded)", got)
+	}
+	if got := bundle.Entrypoints["main"].AsyncBytes; got != 900 {
+		t.Fatalf("async bytes = %d, want 900", got)
+	}
+}
+
+func TestAngularIngressPrefersStaticPathOverShorterDynamicOne(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"src/main.ts":{"imports":[{"path":"src/lazy.ts","kind":"dynamic-import"},{"path":"src/a.ts","kind":"import-statement"}]},"src/lazy.ts":{"imports":[{"path":"node_modules/heavy/index.js","kind":"import-statement"}]},"src/a.ts":{"imports":[{"path":"src/b.ts","kind":"import-statement"}]},"src/b.ts":{"imports":[{"path":"node_modules/heavy/index.js","kind":"import-statement"}]},"node_modules/heavy/index.js":{}},"outputs":{"main.js":{"bytes":300,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":100},"src/a.ts":{"bytesInOutput":50},"src/b.ts":{"bytesInOutput":50},"node_modules/heavy/index.js":{"bytesInOutput":100}}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mod, ok := bundle.FindModule("node_modules/heavy/index.js")
+	if !ok {
+		t.Fatal("heavy module missing")
+	}
+	want := []string{"src/main.ts", "src/a.ts", "src/b.ts", "node_modules/heavy/index.js"}
+	if !slices.Equal(mod.IngressPaths, want) {
+		t.Fatalf("ingress path = %v, want static path %v", mod.IngressPaths, want)
+	}
+}
+
+func TestEsbuildModulesCarryInstalledVersions(t *testing.T) {
+	stats := writeStats(t, "meta.json", `{"inputs":{"src/index.ts":{"imports":[{"path":"node_modules/foo/index.js","kind":"import-statement"}]},"node_modules/foo/index.js":{}},"outputs":{"out.js":{"bytes":100,"entryPoint":"src/index.ts","inputs":{"src/index.ts":{"bytesInOutput":40},"node_modules/foo/index.js":{"bytesInOutput":60}}}}}`)
+	pkgDir := filepath.Join(filepath.Dir(stats), "node_modules", "foo")
+	if err := os.MkdirAll(pkgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkgDir, "package.json"), []byte(`{"version":"1.2.3"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	bundle, err := (&parsers.EsbuildParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mod, ok := bundle.FindModule("node_modules/foo/index.js")
+	if !ok || mod.Version != "1.2.3" {
+		t.Fatalf("module = %+v, want version 1.2.3", mod)
+	}
+}
+
+func TestWhyReportsRetainedSizeAndImporters(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"src/main.ts":{"imports":[{"path":"src/a.ts","kind":"import-statement"},{"path":"src/b.ts","kind":"import-statement"},{"path":"src/c.ts","kind":"import-statement"}]},"src/a.ts":{"imports":[{"path":"node_modules/pdf/index.js","kind":"import-statement"}]},"src/b.ts":{"imports":[{"path":"node_modules/pdf/index.js","kind":"import-statement"}]},"src/c.ts":{"imports":[{"path":"node_modules/solo/index.js","kind":"import-statement"}]},"node_modules/pdf/index.js":{"imports":[{"path":"node_modules/pdfdep/index.js","kind":"import-statement"}]},"node_modules/pdfdep/index.js":{},"node_modules/solo/index.js":{}},"outputs":{"main.js":{"bytes":1000,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":10},"src/a.ts":{"bytesInOutput":10},"src/b.ts":{"bytesInOutput":10},"src/c.ts":{"bytesInOutput":10},"node_modules/pdf/index.js":{"bytesInOutput":300},"node_modules/pdfdep/index.js":{"bytesInOutput":200},"node_modules/solo/index.js":{"bytesInOutput":50}}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := func(target string) (retained int64, savings map[string]int64) {
+		var out bytes.Buffer
+		if err := reporters.NewWhy(target, "json").Render(context.Background(), &out, bundle); err != nil {
+			t.Fatal(err)
+		}
+		var res struct {
+			Retained  int64 `json:"retainedInitialBytes"`
+			Importers []struct {
+				Module      string `json:"module"`
+				FirstParty  bool   `json:"firstParty"`
+				SavingBytes int64  `json:"savingBytes"`
+			} `json:"importers"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+			t.Fatal(err)
+		}
+		savings = map[string]int64{}
+		for _, imp := range res.Importers {
+			if !imp.FirstParty {
+				t.Fatalf("%s importer %s should be first-party", target, imp.Module)
+			}
+			savings[imp.Module] = imp.SavingBytes
+		}
+		return res.Retained, savings
+	}
+
+	retained, savings := trace("pdf")
+	if retained != 500 {
+		t.Fatalf("pdf retained = %d, want 500 (pdf + its dependency)", retained)
+	}
+	if len(savings) != 2 || savings["src/a.ts"] != 0 || savings["src/b.ts"] != 0 {
+		t.Fatalf("pdf importer savings = %v, want a.ts and b.ts saving 0 each", savings)
+	}
+
+	retained, savings = trace("solo")
+	if retained != 50 || savings["src/c.ts"] != 50 {
+		t.Fatalf("solo retained=%d savings=%v, want 50 and c.ts saving 50", retained, savings)
+	}
+}

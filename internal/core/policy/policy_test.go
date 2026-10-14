@@ -168,3 +168,18 @@ func TestPolicyWarnsWhenDuplicateVersionEvidenceIsMissing(t *testing.T) {
 		t.Fatalf("missing-version result = %+v, want passing result with incomplete-evidence warning", result)
 	}
 }
+
+func TestPolicy_FailsWhenInitialRootsUnresolved(t *testing.T) {
+	b := core.NewBundle(core.Metadata{Bundler: "angular"})
+	b.AddChunk(core.Chunk{ID: "main.js", Path: "main.js", SizeBytes: 500, Type: core.LoadTypeAsync})
+	b.AddEntrypoint("main", core.Entrypoint{Name: "main"})
+	limit := int64(1000)
+
+	res := policy.Evaluate(b, nil, policy.Policy{MaxInitial: &limit})
+	if res.Passed {
+		t.Fatal("expected failure when no initial roots were detected")
+	}
+	if len(res.Violations) == 0 || res.Violations[0].Rule != "INITIAL_SIZE_UNRESOLVED" {
+		t.Fatalf("violations = %+v, want INITIAL_SIZE_UNRESOLVED", res.Violations)
+	}
+}

@@ -139,6 +139,10 @@ func (r *MarkdownReporter) Render(ctx context.Context, w io.Writer, data any) er
 					status = "➕ Added"
 				} else if pkg.CurrBytes == 0 {
 					status = "➖ Removed"
+				} else if pkg.Status == diff.StatusPromoted {
+					status = "⬆️ Moved to initial"
+				} else if pkg.Status == diff.StatusDeferred {
+					status = "⬇️ Deferred"
 				}
 				sign := "+"
 				if pkg.DeltaBytes < 0 {
@@ -150,9 +154,22 @@ func (r *MarkdownReporter) Render(ctx context.Context, w io.Writer, data any) er
 			sb.WriteString("\n")
 		}
 
+		if len(v.FirstParty) > 0 {
+			sb.WriteString("### First-party Code\n\n")
+			sb.WriteString("| Project | Total Delta | Initial Delta |\n")
+			sb.WriteString("| :--- | :---: | :---: |\n")
+			for i, fp := range v.FirstParty {
+				if i == 5 {
+					break
+				}
+				fmt.Fprintf(&sb, "| `%s` | `%s` | `%s` |\n", fp.Name, formatDelta(fp.DeltaBytes), formatDelta(fp.InitialDelta))
+			}
+			sb.WriteString("\n")
+		}
+
 		// Collapsible Unchanged Packages & Micro-Drift
-		if len(v.UnchangedPackages) > 0 || v.MicroDriftBytes > 0 {
-			summaryText := fmt.Sprintf("⚪ %d Unchanged Packages", len(v.UnchangedPackages))
+		if v.UnchangedCount > 0 || len(v.UnchangedPackages) > 0 || v.MicroDriftBytes > 0 {
+			summaryText := fmt.Sprintf("⚪ %d Unchanged Packages", max(v.UnchangedCount, len(v.UnchangedPackages)))
 			if v.MicroDriftBytes > 0 {
 				summaryText += fmt.Sprintf(" & Micro-drift (%s)", formatBytes(v.MicroDriftBytes))
 			}

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Angular parser: derive initial roots from the metafile when `index.html`
+  matches no emitted file (deploy-URL placeholders, CDN references), instead
+  of reporting 0 initial JS.
+- Gate: fail with `INITIAL_SIZE_UNRESOLVED` when an initial budget is set but
+  no initial roots were detected, instead of passing silently.
+- Diff: report a package moving between lazy and initial chunks
+  (`PROMOTED`/`DEFERRED`, `initialDeltaBytes`) instead of `UNCHANGED`; group
+  first-party changes by workspace project; pair content-hashed chunks into
+  `changedChunks`; omit module lists from added/removed chunks; list unchanged
+  packages only on request (`unchangedCount` is always reported).
+- `--why` and diff attributions prefer static import chains over shorter
+  chains through dynamic imports.
+- esbuild parser: set module versions so duplicate-version detection works.
+- Nx discovery no longer assumes a `browser/` subdirectory for unbuilt apps.
+- MCP gate loads `.bundleradar.yml` relative to the stats file, not only the
+  server's working directory.
+
+### Added
+
+- `--why` reports `retainedInitialBytes` and static `importers` with the
+  initial JS each import would save (esbuild and Angular stats).
+- MCP: `entry` on `bundle_scan`/`bundle_diff`/`bundle_gate`; `dist` and
+  `bundler` on `bundle_diff`/`bundle_gate`; `include_unchanged` on `bundle_diff`.
+- Config: `scan.bundler`/`scan.dist`/`scan.entry`, `budgets.max_lazy`,
+  `budgets.max_total_delta`, `rules.detect_duplicate_packages`.
+
 ## [2.4.1] - 2026-10-14
 
 ### Changed

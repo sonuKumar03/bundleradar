@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
@@ -27,6 +28,21 @@ type WhyResult struct {
 	LazyBytes    int64      `json:"lazyBytes"`
 	TotalBytes   int64      `json:"totalBytes"`
 	Chains       []WhyChain `json:"chains"`
+	// RetainedInitialBytes is the initial JS that would drop out of the
+	// startup bundle if no other module statically imported the target.
+	// It is omitted when the bundler's stats carry no import edges.
+	RetainedInitialBytes int64         `json:"retainedInitialBytes,omitempty"`
+	Importers            []WhyImporter `json:"importers,omitempty"`
+}
+
+// WhyImporter is a module that statically imports the target.
+type WhyImporter struct {
+	Module     string `json:"module"`
+	Package    string `json:"package,omitempty"`
+	FirstParty bool   `json:"firstParty"`
+	// SavingBytes is the initial JS saved by removing only this importer's
+	// import of the target. It is 0 when other importers keep it in the bundle.
+	SavingBytes int64 `json:"savingBytes"`
 }
 
 // WhyReporter renders an import trace for a target. It implements core.Reporter
@@ -73,6 +89,7 @@ func (r *WhyReporter) Render(ctx context.Context, w io.Writer, data any) error {
 		path  []string
 	}
 	contribs := make(map[string]*chunkContrib)
+	targetIDs := make(map[string]bool)
 
 	for _, m := range bundle.Modules {
 		if err := ctx.Err(); err != nil {
@@ -87,6 +104,7 @@ func (r *WhyReporter) Render(ctx context.Context, w io.Writer, data any) error {
 		}
 
 		res.Found = true
+		targetIDs[m.ID] = true
 		if m.Package != "" {
 			res.PackageName = m.Package
 		}
@@ -130,6 +148,20 @@ func (r *WhyReporter) Render(ctx context.Context, w io.Writer, data any) error {
 		})
 	}
 
+	sort.SliceStable(res.Chains, func(i, j int) bool {
+		a, b := res.Chains[i], res.Chains[j]
+		if a.Initial != b.Initial {
+			return a.Initial
+		}
+		if a.BytesInChunk != b.BytesInChunk {
+			return a.BytesInChunk > b.BytesInChunk
+		}
+		return a.Output < b.Output
+	})
+	if res.Found && bundle.Graph != nil {
+		res.RetainedInitialBytes, res.Importers = traceImporters(bundle, targetIDs)
+	}
+
 	if r.FormatName == "json" {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
@@ -145,6 +177,23 @@ func (r *WhyReporter) Render(ctx context.Context, w io.Writer, data any) error {
 	fmt.Fprintf(w, "-------------------------------------------------------------\n")
 	fmt.Fprintf(w, "Total Size:   %s (Initial: %s, Lazy: %s)\n",
 		formatBytes(res.TotalBytes), formatBytes(res.InitialBytes), formatBytes(res.LazyBytes))
+	if res.RetainedInitialBytes > 0 || len(res.Importers) > 0 {
+		fmt.Fprintf(w, "Retained:     %s of initial JS depends only on this package's imports\n", formatBytes(res.RetainedInitialBytes))
+		if len(res.Importers) > 0 {
+			fmt.Fprintf(w, "Static importers (removing one import saves its SavingBytes):\n")
+			for i, imp := range res.Importers {
+				if i == 15 {
+					fmt.Fprintf(w, "  … and %d more\n", len(res.Importers)-i)
+					break
+				}
+				kind := "pkg"
+				if imp.FirstParty {
+					kind = "app"
+				}
+				fmt.Fprintf(w, "  • [%s] %s (saves %s)\n", kind, imp.Module, formatBytes(imp.SavingBytes))
+			}
+		}
+	}
 	fmt.Fprintf(w, "Emitted into %d chunk(s):\n\n", len(res.Chains))
 	for _, c := range res.Chains {
 		kind := "lazy"
@@ -165,4 +214,63 @@ func (r *WhyReporter) Render(ctx context.Context, w io.Writer, data any) error {
 		fmt.Fprintf(w, "\n")
 	}
 	return nil
+}
+
+// traceImporters computes the retained initial bytes of the target modules and
+// each static importer's individual saving using the bundle's import graph.
+func traceImporters(bundle *core.Bundle, targets map[string]bool) (int64, []WhyImporter) {
+	g := bundle.Graph
+	modByID := make(map[string]core.Module, len(bundle.Modules))
+	for _, m := range bundle.Modules {
+		modByID[m.ID] = m
+	}
+	initialChunks := bundle.InitialChunkSet()
+
+	before := g.StaticReach(nil)
+	savedBy := func(skip func(from, to string) bool) int64 {
+		after := g.StaticReach(skip)
+		var saved int64
+		for id := range before {
+			if !after[id] {
+				saved += core.ModuleInitialBytes(modByID[id], initialChunks)
+			}
+		}
+		return saved
+	}
+
+	retained := savedBy(func(from, to string) bool { return targets[to] && !targets[from] })
+
+	froms := make([]string, 0)
+	for from, edges := range g.Edges {
+		if targets[from] || !before[from] {
+			continue
+		}
+		for _, e := range edges {
+			if !e.Dynamic && targets[e.To] {
+				froms = append(froms, from)
+				break
+			}
+		}
+	}
+	importers := make([]WhyImporter, 0, len(froms))
+	for _, from := range froms {
+		m := modByID[from]
+		importers = append(importers, WhyImporter{
+			Module:      from,
+			Package:     m.Package,
+			FirstParty:  m.Package == "",
+			SavingBytes: savedBy(func(f, to string) bool { return f == from && targets[to] }),
+		})
+	}
+	sort.Slice(importers, func(i, j int) bool {
+		a, b := importers[i], importers[j]
+		if a.FirstParty != b.FirstParty {
+			return a.FirstParty
+		}
+		if a.SavingBytes != b.SavingBytes {
+			return a.SavingBytes > b.SavingBytes
+		}
+		return a.Module < b.Module
+	})
+	return retained, importers
 }

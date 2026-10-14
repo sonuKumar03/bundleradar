@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 	"github.com/sonuKumar03/bundleradar/internal/core/diff"
@@ -48,6 +47,22 @@ func newGateCommand() *cobra.Command {
 			client := bundleradar.New()
 			ctx := c.Context()
 
+			cfg, cfgPath, err := bundleradar.FindAndLoadConfig("")
+			if err != nil {
+				return &UsageError{Err: err}
+			}
+			if cfg != nil {
+				if !c.Flags().Changed("dist") && cfg.Scan.Dist != "" {
+					dist = bundleradar.ResolvePath(cfgPath, cfg.Scan.Dist)
+				}
+				if !c.Flags().Changed("bundler") && cfg.Scan.Bundler != "" {
+					bundler = cfg.Scan.Bundler
+				}
+				if !c.Flags().Changed("entry") && cfg.Scan.Entry != "" {
+					entry = cfg.Scan.Entry
+				}
+			}
+
 			bundle, err := client.Scan(ctx, bundleradar.ScanOptions{
 				StatsPath: statsPath,
 				DistPath:  dist,
@@ -80,10 +95,6 @@ func newGateCommand() *cobra.Command {
 				diffResult = client.Diff(baseBundle, bundle, diff.Options{})
 			}
 
-			cfg, _, err := bundleradar.FindAndLoadConfig("")
-			if err != nil {
-				return &UsageError{Err: err}
-			}
 			pol, err := cfg.ToPolicy()
 			if err != nil {
 				return &UsageError{Err: err}
@@ -102,7 +113,9 @@ func newGateCommand() *cobra.Command {
 			if c.Flags().Changed("forbid") {
 				pol.ForbiddenPkgs = forbid
 			}
-			pol.DetectDuplicatePkgs = detectDuplicatePkgs
+			if c.Flags().Changed("detect-duplicate-pkgs") {
+				pol.DetectDuplicatePkgs = detectDuplicatePkgs
+			}
 			if (pol.MaxInitialDelta != nil || pol.MaxTotalDelta != nil) && against == "" {
 				return &UsageError{Err: fmt.Errorf("delta budgets require --against")}
 			}
@@ -155,22 +168,9 @@ func newGateCommand() *cobra.Command {
 }
 
 func scopeBundle(bundle *core.Bundle, query string) (*core.Bundle, error) {
-	ep, ok := bundle.ResolveEntrypoint(query)
-	if !ok {
-		return nil, &UsageError{Err: fmt.Errorf("entrypoint %q not found in bundle", query)}
-	}
-	scoped := core.NewBundle(bundle.Metadata)
-	scoped.AddEntrypoint(ep.Name, *ep)
-	for _, chunk := range bundle.Chunks {
-		scoped.AddChunk(chunk)
-	}
-	for _, mod := range bundle.Modules {
-		for _, id := range mod.ChunkIDs {
-			if slices.Contains(ep.ChunkIDs, id) || len(bundle.Entrypoints) == 1 {
-				scoped.AddModule(mod)
-				break
-			}
-		}
+	scoped, err := bundle.ScopeToEntrypoint(query)
+	if err != nil {
+		return nil, &UsageError{Err: err}
 	}
 	return scoped, nil
 }

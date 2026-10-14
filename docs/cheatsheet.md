@@ -97,13 +97,22 @@ claude mcp add bundleradar -- bundleradar mcp
 ## Config File (`.bundleradar.yml`)
 
 ```yaml
+scan:                      # defaults so CI and agents need no flags
+  bundler: angular
+  dist: dist/my-app/browser
+  entry: src/main.ts
+
 budgets:
   initial_js_max: 250kb
+  max_lazy: 2mb
   total_max: 1.5mb
+  max_initial_delta: 0b
+  max_total_delta: 50kb
   max_css: 100kb
   max_assets: 2mb
 
 rules:
+  detect_duplicate_packages: true
   disallow_packages:
     - moment
     - lodash

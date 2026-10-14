@@ -66,7 +66,8 @@ func TestDiff_EntrypointsAndPackages(t *testing.T) {
 	})
 
 	d := diff.Calculate(base, current, diff.Options{
-		DriftThreshold: 1000, // 1KB
+		DriftThreshold:   1000, // 1KB
+		IncludeUnchanged: true,
 	})
 
 	if ep, ok := d.Entrypoints["main"]; !ok {
@@ -154,5 +155,66 @@ func TestDiffTotalBytesCountsJavaScriptChunksOnly(t *testing.T) {
 	d := diff.Calculate(nil, b, diff.Options{})
 	if d.Summary.HeadTotalBytes != 300 {
 		t.Fatalf("total JS bytes = %d, want 300", d.Summary.HeadTotalBytes)
+	}
+}
+
+func TestDiff_UnchangedPackagesAreOptIn(t *testing.T) {
+	mk := func() *core.Bundle {
+		b := core.NewBundle(core.Metadata{})
+		b.AddChunk(core.Chunk{ID: "main.js", SizeBytes: 100, Type: core.LoadTypeInitial})
+		b.AddModule(core.Module{ID: "node_modules/lodash/a.js", Package: "lodash", SizeBytes: 100, ChunkIDs: []string{"main.js"}, ChunkBytes: map[string]int64{"main.js": 100}})
+		return b
+	}
+	d := diff.Calculate(mk(), mk(), diff.Options{})
+	if len(d.UnchangedPackages) != 0 || d.UnchangedCount != 1 {
+		t.Fatalf("unchanged list=%d count=%d, want 0 and 1", len(d.UnchangedPackages), d.UnchangedCount)
+	}
+}
+
+func TestDiff_LazyToInitialPromotionIsReported(t *testing.T) {
+	base := core.NewBundle(core.Metadata{})
+	base.AddChunk(core.Chunk{ID: "main.js", SizeBytes: 100, Type: core.LoadTypeInitial})
+	base.AddChunk(core.Chunk{ID: "lazy.js", SizeBytes: 500, Type: core.LoadTypeAsync})
+	base.AddModule(core.Module{ID: "node_modules/pdfjs/a.js", Package: "pdfjs", SizeBytes: 500, ChunkIDs: []string{"lazy.js"}, ChunkBytes: map[string]int64{"lazy.js": 500}, IngressPaths: []string{"src/main.ts", "node_modules/pdfjs/a.js"}})
+	head := core.NewBundle(core.Metadata{})
+	head.AddChunk(core.Chunk{ID: "main.js", SizeBytes: 600, Type: core.LoadTypeInitial})
+	head.AddModule(core.Module{ID: "node_modules/pdfjs/a.js", Package: "pdfjs", SizeBytes: 500, ChunkIDs: []string{"main.js"}, ChunkBytes: map[string]int64{"main.js": 500}, IngressPaths: []string{"src/main.ts", "node_modules/pdfjs/a.js"}})
+
+	d := diff.Calculate(base, head, diff.Options{})
+	if len(d.Packages) != 1 || d.Packages[0].Status != diff.StatusPromoted || d.Packages[0].InitialDelta != 500 {
+		t.Fatalf("packages = %+v, want pdfjs PROMOTED with initial delta 500", d.Packages)
+	}
+	if len(d.Attributions) != 1 || d.Attributions[0].DeltaBytes != 500 {
+		t.Fatalf("attributions = %+v, want one 500B regression", d.Attributions)
+	}
+}
+
+func TestDiff_FirstPartyChangesAreGrouped(t *testing.T) {
+	mk := func(size int64) *core.Bundle {
+		b := core.NewBundle(core.Metadata{})
+		b.AddChunk(core.Chunk{ID: "main.js", SizeBytes: size, Type: core.LoadTypeInitial})
+		b.AddModule(core.Module{ID: "libs/pdf-sign/src/a.ts", IsAppCode: true, SizeBytes: size, ChunkIDs: []string{"main.js"}, ChunkBytes: map[string]int64{"main.js": size}})
+		return b
+	}
+	d := diff.Calculate(mk(100), mk(400), diff.Options{})
+	if len(d.FirstParty) != 1 || d.FirstParty[0].Name != "libs/pdf-sign" || d.FirstParty[0].DeltaBytes != 300 {
+		t.Fatalf("firstParty = %+v, want libs/pdf-sign +300", d.FirstParty)
+	}
+}
+
+func TestDiff_HashedChunkRenameIsAChange(t *testing.T) {
+	base := core.NewBundle(core.Metadata{})
+	base.AddChunk(core.Chunk{ID: "main-AAAAAAAA.js", Name: "main-AAAAAAAA.js", SizeBytes: 100, ModuleIDs: []string{"a", "b"}})
+	base.AddChunk(core.Chunk{ID: "chunk-11111111.js", Name: "chunk-11111111.js", SizeBytes: 50, ModuleIDs: []string{"x", "y", "z"}})
+	head := core.NewBundle(core.Metadata{})
+	head.AddChunk(core.Chunk{ID: "main-BBBBBBBB.js", Name: "main-BBBBBBBB.js", SizeBytes: 130, ModuleIDs: []string{"a", "b"}})
+	head.AddChunk(core.Chunk{ID: "chunk-22222222.js", Name: "chunk-22222222.js", SizeBytes: 60, ModuleIDs: []string{"x", "y", "z", "w"}})
+
+	d := diff.Calculate(base, head, diff.Options{})
+	if len(d.AddedChunks) != 0 || len(d.RemovedChunks) != 0 {
+		t.Fatalf("added=%d removed=%d, want none", len(d.AddedChunks), len(d.RemovedChunks))
+	}
+	if len(d.ChangedChunks) != 2 || d.ChangedChunks[0].Name != "main.js" || d.ChangedChunks[0].DeltaBytes != 30 {
+		t.Fatalf("changed = %+v", d.ChangedChunks)
 	}
 }

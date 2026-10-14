@@ -125,10 +125,10 @@ func (r *NxResolver) Resolve(ctx context.Context, root string) ([]core.Target, e
 					outputPath = filepath.Join(root, outputPath)
 				}
 				foundStats = filepath.Join(outputPath, "stats.json")
-				foundDist = filepath.Join(outputPath, "browser")
+				foundDist = outputPath
 			} else {
 				foundStats = filepath.Join(root, "dist", "apps", dirName, "stats.json")
-				foundDist = filepath.Join(root, "dist", "apps", dirName, "browser")
+				foundDist = filepath.Join(root, "dist", "apps", dirName)
 			}
 		}
 
