@@ -70,41 +70,15 @@ Micro-drift: 70.31 KB across sub-threshold updates
 
 ## 📦 Installation
 
-### Option 1: 1-Line Standalone Shell Installer
-
-Downloads the latest precompiled native binary to `$GOBIN` when set, otherwise `/usr/local/bin` (or `~/.local/bin`). No Go installation is needed for release binaries. Running the installer from a source checkout builds that checkout using Go:
-
 ```bash
+# One-line installer (macOS, Linux, Windows WSL)
 curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/install.sh | sh
-```
 
-*To install the binary alongside the AI Agent skill:*
-```bash
-curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/install.sh | sh -s -- --with-skill
-```
-
-### Option 2: Precompiled Multi-Arch Binaries
-
-Download standalone binaries directly from the [**GitHub Releases**](https://github.com/sonuKumar03/bundleradar/releases/latest):
-- 🍏 **macOS Apple Silicon (M1/M2/M3/M4)**: `bundleradar_*_darwin_arm64.tar.gz`
-- 🍏 **macOS Intel**: `bundleradar_*_darwin_amd64.tar.gz`
-- 🐧 **Linux x86_64**: `bundleradar_*_linux_amd64.tar.gz`
-- 🐧 **Linux ARM64**: `bundleradar_*_linux_arm64.tar.gz`
-- 🪟 **Windows x64**: `bundleradar_*_windows_amd64.zip`
-
-### Option 3: Go Install
-
-```bash
+# Or via Go
 go install github.com/sonuKumar03/bundleradar@latest
 ```
 
-### Clean Uninstall
-
-To cleanly remove `bundleradar` (and legacy `bundlecheck`) binaries and installed companion agent skills:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/uninstall.sh | sh
-```
+Precompiled binaries for all platforms are on [**GitHub Releases**](https://github.com/sonuKumar03/bundleradar/releases/latest).
 
 ---
 
