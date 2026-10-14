@@ -2,22 +2,22 @@
 name: bundleradar
 description: >
   Use this skill when the user wants to understand, compare, or reduce the
-  JavaScript bundle size of an Angular application built with esbuild.
-  Use it to identify initial or lazy bundle contributors, trace why a package
-  or source file is bundled, diagnose bundle regressions, measure an
-  optimization against a baseline, enforce bundle budgets, or inspect costs
-  across Nx applications. Do not use it for runtime CPU, memory, Lighthouse,
-  Web Vitals, network profiling, or non-Angular builds unless compatible
-  Angular/esbuild stats are available.
+  JavaScript bundle size of an application built with Angular, esbuild, Vite,
+  or Webpack. Use it to identify initial or lazy bundle contributors, trace
+  why a package or source file is bundled, diagnose bundle regressions,
+  measure an optimization against a baseline, enforce bundle budgets, or
+  inspect costs across Nx applications. Do not use it for runtime CPU,
+  memory, Lighthouse, Web Vitals, or network profiling.
 compatibility: >
-  Requires the bundleradar CLI and Angular esbuild stats.json. Node and Nx are
-  required only to build or inspect an Nx workspace. Git is required only for
-  git-ref baseline workflows.
+  Requires the bundleradar CLI and a bundler stats file (Angular stats.json,
+  esbuild meta.json, Vite manifest.json, or Webpack stats.json). Node and Nx
+  are required only to build or inspect an Nx workspace. Git is required only
+  for git-ref baseline workflows.
 ---
 
 # BundleRadar
 
-Use BundleRadar as the reasoning loop for Angular esbuild bundle work. Prefer exact bytes and measured deltas over generic optimization advice.
+Use BundleRadar as the reasoning loop for JavaScript bundle work (Angular, esbuild, Vite, Webpack). Prefer exact bytes and measured deltas over generic optimization advice.
 
 ## Route the request
 
