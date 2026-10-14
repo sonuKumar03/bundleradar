@@ -2,7 +2,7 @@
 
 # ⚡ bundleradar
 
-**Lightning-fast bundle inspector, dependency tracer, optimization advisor, and CI budget gate for Angular esbuild.**
+**Lightning-fast bundle inspector, dependency tracer, optimization advisor, and CI budget gate for Angular, esbuild, Vite, and Webpack.**
 
 <br>
 
@@ -24,9 +24,9 @@
 
 ## ⚡ Overview
 
-Modern Angular applications build with **esbuild** for incredible compilation speed. However, esbuild's raw `stats.json` files are massive, complex, and unreadable for quick human inspection or CI pull request reviews.
+JavaScript bundlers produce stats files that are massive, complex, and unreadable for quick human inspection or CI pull request reviews — whether it's esbuild's `meta.json`, Webpack's `stats.json`, Vite's `rollup-stats.json`, or Angular's build output.
 
-`bundleradar` is a self-contained Go binary with zero runtime dependencies that turns Angular `stats.json` files into **actionable dependency hierarchies, file-by-file root cause traces, automated optimization suggestions, and hard CI budget gates**. Fast native analysis; reported timings exclude Angular builds and external Nx subprocesses.
+`bundleradar` is a self-contained Go binary with zero runtime dependencies that turns any bundler's stats output into **actionable dependency hierarchies, file-by-file root cause traces, automated optimization suggestions, and hard CI budget gates**. Supports **Angular, esbuild, Vite, and Webpack** out of the box. Fast native analysis; reported timings exclude builds and external subprocesses.
 
 ```text
 $ bundleradar diff dist/apps/portal/stats.json --against origin/master
@@ -110,14 +110,24 @@ curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/unin
 
 ## 🚀 Quick Start
 
-### 1. Build your Angular application with stats
+### 1. Build your application with stats
 
-Add `--stats-json` to your build command (or configure `"statsJson": true` in `angular.json`):
+Generate a stats file for your bundler:
 
 ```bash
+# Angular
 ng build --configuration production --stats-json
+
+# esbuild
+esbuild src/index.ts --bundle --metafile=meta.json --outdir=dist
+
+# Vite
+npx vite build -- --stats
+
+# Webpack
+npx webpack --json=stats.json
 ```
-*This produces `dist/<project-name>/stats.json`.*
+*This produces a stats/meta JSON file that bundleradar auto-detects.*
 
 ### 2. Inspect with bundleradar
 
@@ -264,7 +274,7 @@ bundleradar mcp
 
 ## 🛡️ CI & GitHub Actions Integration
 
-### Official GitHub Action (`uses: sonuKumar03/bundleradar@v2.4.0`)
+### Official GitHub Action (`uses: sonuKumar03/bundleradar@v2.4.1`)
 
 Add automated bundle size budget validation and PR delta comments to `.github/workflows/bundle-size.yml`:
 
@@ -290,7 +300,7 @@ jobs:
       - run: npx ng build --configuration production --stats-json
 
       - name: Run bundleradar & Post PR Report
-        uses: sonuKumar03/bundleradar@v2.4.0
+        uses: sonuKumar03/bundleradar@v2.4.1
         with:
           stats: dist/my-app/stats.json
           entry: src/main.ts
@@ -337,9 +347,9 @@ Instead of rebuilding the base branch in an isolated Git worktree for every PR, 
 - If a requested baseline comparison fails, the Action fails instead of silently falling back to a current-only scan, and it does not report the comparison as completed.
 
 ### ☁️ On-Demand Remote Audits
-Audit any public open-source Angular repository directly via GitHub Actions without local installation:
+Audit any public open-source repository directly via GitHub Actions without local installation:
 1. Navigate to **Actions** → **Remote Bundle Audit**.
-2. Click **Run workflow** and input the public repository URL (e.g. `https://github.com/user/angular-app`).
+2. Click **Run workflow** and input the public repository URL (e.g. `https://github.com/user/my-app`).
 3. View the full bundle breakdown, top packages, and optimization recommendations directly in the **Job Summary**.
 
 ---
@@ -439,7 +449,7 @@ For complete agent documentation and JSON contracts, see [**docs/agents.md**](do
 ## 🏗️ Architecture
 
 ```text
-Angular esbuild stats.json ──────────┐
+stats.json / meta.json ──────────────┐
                                      ▼
 browser/ dist + index.html ──► internal/adapters/parsers (Angular, Esbuild, Vite, Webpack)
                                      │
@@ -465,7 +475,7 @@ browser/ dist + index.html ──► internal/adapters/parsers (Angular, Esbuild
 ## 🧪 Development & Testing
 
 ```bash
-# Run test suite (71 tests across 11 packages)
+# Run test suite (154 tests across 13 packages)
 go test -v ./...
 
 # Run linter
@@ -479,7 +489,7 @@ go build -o bundleradar .
 
 ## 📄 License
 
-Released under the **MIT License**. Built with ❤️ for the Angular & developer performance community.
+Released under the **MIT License**. Built with ❤️ for the JavaScript developer performance community.
 
 ---
 
