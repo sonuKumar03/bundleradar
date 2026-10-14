@@ -163,7 +163,7 @@ bundleradar gate dist/my-app/stats.json --max-initial 250kb --max-total 1.2mb
 | `bundleradar history save/list/show` | Record and inspect persistent build history checkpoints |
 | `bundleradar ui` | Open interactive Studio UI with treemap, trends, and live file watching |
 
-All commands support `--format json` for machine-readable output. See the [**full docs**](https://sonukumar03.github.io/bundleradar/) for detailed flags and examples.
+All commands support `--format json` for machine-readable output. `--entry` / `-e` scopes initial/lazy reachability to a source path or exact chunk name (globs are not supported); `TotalJS` always reflects the whole browser build. See the [**full docs**](https://sonukumar03.github.io/bundleradar/) for detailed flags and examples.
 
 ---
 
@@ -176,6 +176,7 @@ Add automated bundle size gating and PR delta comments with the official action:
   uses: sonuKumar03/bundleradar@v2.4.1
   with:
     stats: dist/my-app/stats.json
+    entry: src/main.ts
     max-initial: '250kb'
     max-total: '1.2mb'
     max-initial-delta: '0B'
