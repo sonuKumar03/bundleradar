@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>bundleradar — Angular Bundle Inspector, MCP Server &amp; Agent Skill</title>
-  <meta name="description" content="Analyze Angular esbuild bundles through a fast CLI, GitHub Actions, an MCP server, and an installable Agent Skill. Trace dependencies, measure optimizations, and enforce bundle budgets.">
+  <title>bundleradar — Universal JavaScript Bundle Analyzer, MCP Server &amp; Agent Skill</title>
+  <meta name="description" content="Analyze JavaScript bundles from Angular, Vite, Webpack, and esbuild through a fast CLI, GitHub Actions, an MCP server, and an installable Agent Skill. Trace dependencies, measure optimizations, and enforce bundle budgets.">
   <meta name="author" content="Sonu Kumar">
   <meta name="theme-color" content="#030712">
   <link rel="canonical" href="https://sonukumar03.github.io/bundleradar/">
@@ -15,8 +15,8 @@
   <!-- Open Graph / Social -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://sonukumar03.github.io/bundleradar/">
-  <meta property="og:title" content="bundleradar — Angular Bundle Inspector, MCP Server &amp; Agent Skill">
-  <meta property="og:description" content="Analyze Angular esbuild bundles through a fast CLI, GitHub Actions, an MCP server, and an installable Agent Skill. Trace dependencies, measure optimizations, and enforce bundle budgets.">
+  <meta property="og:title" content="bundleradar — Universal JavaScript Bundle Analyzer, MCP Server &amp; Agent Skill">
+  <meta property="og:description" content="Analyze JavaScript bundles from Angular, Vite, Webpack, and esbuild through a fast CLI, GitHub Actions, an MCP server, and an installable Agent Skill. Trace dependencies, measure optimizations, and enforce bundle budgets.">
   <meta property="og:site_name" content="bundleradar">
   <meta name="twitter:card" content="summary_large_image">
 
@@ -33,7 +33,7 @@
       "price": "0",
       "priceCurrency": "USD"
     },
-    "description": "Analyze Angular esbuild bundles through a fast CLI, GitHub Actions, an MCP server, and an installable Agent Skill. Trace dependencies, measure optimizations, and enforce bundle budgets.",
+    "description": "Analyze JavaScript bundles from Angular, Vite, Webpack, and esbuild through a fast CLI, GitHub Actions, an MCP server, and an installable Agent Skill. Trace dependencies, measure optimizations, and enforce bundle budgets.",
     "softwareVersion": "2.3.1",
     "url": "https://sonukumar03.github.io/bundleradar/",
     "codeRepository": "https://github.com/sonuKumar03/bundleradar",
@@ -262,7 +262,7 @@
       <!-- Sidebar Footer -->
       <div class="p-4 border-t border-slate-800/80 text-[11px] text-slate-400 space-y-1">
         <div>MIT License</div>
-        <div>Angular v17+ (esbuild)</div>
+        <div>Angular • Vite • Webpack • esbuild</div>
       </div>
     </aside>
 
@@ -281,13 +281,13 @@
 
         <div class="space-y-4 max-w-3xl">
           <h1 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
-            Inspect Angular Bundles. <br>
+            Inspect Any JavaScript Bundle. <br>
             <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-sky-300 to-emerald-300">
               Enforce Zero-Bloat Budgets.
             </span>
           </h1>
           <p class="text-base sm:text-lg text-slate-300 leading-relaxed">
-            Analyze Angular esbuild <code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700 font-mono text-xs">stats.json</code> through a fast CLI, GitHub Actions, a native MCP server, or an installable Agent Skill—then trace dependencies, measure optimizations, and enforce bundle budgets.
+            Analyze bundles from Angular, Vite, Webpack, and esbuild through a fast CLI, GitHub Actions, a native MCP server, or an installable Agent Skill—then trace dependencies, measure optimizations, and enforce bundle budgets.
           </p>
         </div>
 
@@ -308,6 +308,36 @@
           <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5">
             <div class="text-xs font-mono font-bold text-fuchsia-400">🤖 AI AGENTS &amp; MCP</div>
             <div class="text-xs text-slate-300">Native Model Context Protocol server over stdio for Claude Code, Antigravity, and Cursor.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SUPPORTED BUNDLERS GRID -->
+      <section class="scroll-mt-20 space-y-4">
+        <div class="space-y-2">
+          <div class="text-xs font-mono font-semibold uppercase tracking-wider text-sky-400">Compatibility</div>
+          <h2 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Supported Bundlers</h2>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2 text-center">
+            <div class="text-2xl">🅰️</div>
+            <div class="text-sm font-semibold text-white">Angular</div>
+            <div class="text-[11px] text-slate-400 font-mono">esbuild stats.json</div>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2 text-center">
+            <div class="text-2xl">⚡</div>
+            <div class="text-sm font-semibold text-white">Vite</div>
+            <div class="text-[11px] text-slate-400 font-mono">manifest.json</div>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2 text-center">
+            <div class="text-2xl">📦</div>
+            <div class="text-sm font-semibold text-white">Webpack</div>
+            <div class="text-[11px] text-slate-400 font-mono">stats.json</div>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2 text-center">
+            <div class="text-2xl">🔧</div>
+            <div class="text-sm font-semibold text-white">esbuild</div>
+            <div class="text-[11px] text-slate-400 font-mono">metafile.json</div>
           </div>
         </div>
       </section>
@@ -358,9 +388,9 @@
       <section id="the-problem" class="scroll-mt-20 space-y-6">
         <div class="space-y-2">
           <div class="text-xs font-mono font-semibold uppercase tracking-wider text-rose-400">The Problem</div>
-          <h2 class="text-2xl font-bold text-white tracking-tight">Why Angular Bundles Grow Out of Control</h2>
+          <h2 class="text-2xl font-bold text-white tracking-tight">Why JavaScript Bundles Grow Out of Control</h2>
           <p class="text-sm text-slate-300 max-w-3xl">
-            Modern Angular applications use esbuild for blazing fast build times, but bundle size regressions remain a major source of slow Time-to-Interactive (TTI) and First Contentful Paint (FCP).
+            Modern JavaScript applications use fast bundlers like esbuild, Vite, and Webpack, but bundle size regressions remain a major source of slow Time-to-Interactive (TTI) and First Contentful Paint (FCP).
           </p>
         </div>
 
@@ -438,17 +468,19 @@
           <span>Quickstart</span>
         </h2>
         <p class="text-sm text-slate-300">
-          Generate Angular stats during your build and run bundleradar in two simple steps:
+          Generate build stats with your bundler and run bundleradar:
         </p>
 
         <div class="space-y-3 font-mono text-xs">
           <!-- Step 1 -->
           <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-            <div class="text-indigo-400 font-semibold font-sans text-sm">Step 1: Build Angular with stats-json</div>
-            <div class="p-2.5 rounded bg-black/50 border border-slate-800 text-slate-200">
-              ng build --stats-json
+            <div class="text-indigo-400 font-semibold font-sans text-sm">Step 1: Build with stats output</div>
+            <div class="p-2.5 rounded bg-black/50 border border-slate-800 text-slate-200 space-y-1">
+              <div><span class="text-slate-400"># Angular:</span> ng build --stats-json</div>
+              <div><span class="text-slate-400"># Vite:</span>    vite build <span class="text-slate-400">(manifest.json auto-generated)</span></div>
+              <div><span class="text-slate-400"># Webpack:</span> webpack --json &gt; stats.json</div>
+              <div><span class="text-slate-400"># esbuild:</span> esbuild --metafile=meta.json ...</div>
             </div>
-            <div class="text-slate-400 text-[11px] font-sans">This produces <code class="text-slate-300 font-mono">dist/&lt;project-name&gt;/stats.json</code>.</div>
           </div>
 
           <!-- Step 2 -->
@@ -457,6 +489,7 @@
             <div class="p-2.5 rounded bg-black/50 border border-slate-800 text-slate-200">
               bundleradar scan dist/my-app/stats.json
             </div>
+            <div class="text-slate-400 text-[11px] font-sans">Bundler is auto-detected from the file format.</div>
           </div>
         </div>
       </section>
@@ -785,7 +818,7 @@ jobs:
             <h3 class="text-sm font-bold text-white">Companion Agent Skill Definition (<code class="text-indigo-300 font-mono">SKILL.md</code>)</h3>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
-            Install the self-contained binary and complete skill tree for generic agents, Claude Code, and Codex. The binary and Angular esbuild <code>stats.json</code> are prerequisites; use <code>--skill-dir &lt;path&gt;</code> for a custom skill location. The installed Skill uses MCP when available and CLI JSON otherwise.
+            Install the self-contained binary and complete skill tree for generic agents, Claude Code, and Codex. The binary and a bundler stats file (<code>stats.json</code>, <code>manifest.json</code>, or <code>metafile.json</code>) are prerequisites; use <code>--skill-dir &lt;path&gt;</code> for a custom skill location. The installed Skill uses MCP when available and CLI JSON otherwise.
           </p>
           <p class="text-xs text-slate-300 leading-relaxed">
             Prompt: “Reduce the initial JavaScript bundle by at least 50 KB without changing application behavior. Establish a baseline first, identify the highest-confidence optimization, trace its import path, make the change, rebuild, run tests, and report the measured delta.”
@@ -805,7 +838,7 @@ jobs:
       <!-- FOOTER INSIDE MAIN -->
       <footer role="contentinfo" class="border-t border-slate-800 bg-[#030712] py-8 text-xs text-slate-400 mt-16">
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div>Released under the MIT License • Written in Go for Angular esbuild.</div>
+          <div>Released under the MIT License • Written in Go for Angular, Vite, Webpack &amp; esbuild.</div>
           <nav aria-label="Footer links" class="flex items-center space-x-6">
             <a href="https://github.com/sonuKumar03/bundleradar" target="_blank" rel="noopener noreferrer" class="hover:text-slate-200 focus:outline-none focus:underline">GitHub</a>
             <a href="https://github.com/sonuKumar03/bundleradar/releases" target="_blank" rel="noopener noreferrer" class="hover:text-slate-200 focus:outline-none focus:underline">Releases</a>

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 )
@@ -87,6 +88,40 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 		staticByEntry[entry] = seen
 	}
 
+	// Build chunk-level ingress paths via BFS from entry chunks
+	ingressPaths := make(map[string][]string)
+	for entry, vChunk := range manifest {
+		if !vChunk.IsEntry {
+			continue
+		}
+		seen := map[string]bool{entry: true}
+		ingressPaths[entry] = []string{entry}
+		queue := make([]string, 0, len(vChunk.Imports)+len(vChunk.DynamicImports))
+		queue = append(queue, vChunk.Imports...)
+		queue = append(queue, vChunk.DynamicImports...)
+		for len(queue) > 0 {
+			key := queue[0]
+			queue = queue[1:]
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			if _, exists := ingressPaths[key]; !exists {
+				parent := ingressPaths[entry]
+				nextPath := make([]string, len(parent)+1)
+				copy(nextPath, parent)
+				nextPath[len(parent)] = key
+				ingressPaths[key] = nextPath
+			}
+			if next, ok := manifest[key]; ok {
+				queue = append(queue, next.Imports...)
+				queue = append(queue, next.DynamicImports...)
+			}
+		}
+	}
+
+	packageVersions := make(map[string]string)
+
 	for srcKey, vChunk := range manifest {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -115,14 +150,20 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 			bundle.GzipEstimated = true
 		}
 
-		pkgName := extractPackageName(srcKey)
+		pkgName, pkgRoot := extractPackageLocation(srcKey)
+		var p []string
+		if path, ok := ingressPaths[srcKey]; ok {
+			p = path
+		}
 		bundle.AddModule(core.Module{
-			ID:        srcKey,
-			Package:   pkgName,
-			SizeBytes: sizeBytes,
-			GzipBytes: estimateGzip(sizeBytes, vChunk.File),
-			IsAppCode: pkgName == "",
-			ChunkIDs:  []string{chunkID},
+			ID:           srcKey,
+			Package:      pkgName,
+			Version:      installedPackageVersion(pkgRoot, target.StatsPath, packageVersions),
+			SizeBytes:    sizeBytes,
+			GzipBytes:    estimateGzip(sizeBytes, vChunk.File),
+			IsAppCode:    pkgName == "",
+			ChunkIDs:     []string{chunkID},
+			IngressPaths: p,
 		})
 
 		bundle.AddChunk(chunk)
@@ -148,6 +189,23 @@ func (p *ViteParser) Parse(ctx context.Context, target core.Target) (*core.Bundl
 				MimeType:      "text/css",
 			})
 			if cssEstimated {
+				bundle.GzipEstimated = true
+			}
+		}
+
+		// Add emitted non-CSS assets (images, fonts, media)
+		for _, assetFile := range vChunk.Assets {
+			assetSize := cachedFileSize(assetFile)
+			assetGz, assetEstimated := gzipFor(distDir, assetFile, assetSize)
+			ext := strings.ToLower(filepath.Ext(assetFile))
+			bundle.AddAsset(core.Asset{
+				Path:          assetFile,
+				SizeBytes:     assetSize,
+				GzipBytes:     assetGz,
+				GzipEstimated: assetEstimated,
+				MimeType:      inferMimeType(ext),
+			})
+			if assetEstimated {
 				bundle.GzipEstimated = true
 			}
 		}

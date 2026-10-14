@@ -77,6 +77,16 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 	seenModules := make(map[string]*core.Module)
 
+	// Build ingress paths from entrypoint roots
+	rootInputs := make([]string, 0)
+	for _, outPath := range sortedOutputs {
+		out := meta.Outputs[outPath]
+		if out.EntryPoint != "" {
+			rootInputs = append(rootInputs, out.EntryPoint)
+		}
+	}
+	ingressPaths := buildEsbuildIngressPaths(meta.Inputs, rootInputs)
+
 	// Process outputs as chunks
 	for _, outPath := range sortedOutputs {
 		if err := ctx.Err(); err != nil {
@@ -141,13 +151,18 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 				existing.GzipBytes += estimateGzip(inBytes.BytesInOutput, inPath)
 			} else {
 				pkgName := extractPackageName(inPath)
+				var p []string
+				if path, ok := ingressPaths[inPath]; ok {
+					p = path
+				}
 				mod := &core.Module{
-					ID:        inPath,
-					Package:   pkgName,
-					SizeBytes: inBytes.BytesInOutput,
-					GzipBytes: estimateGzip(inBytes.BytesInOutput, inPath),
-					IsAppCode: pkgName == "",
-					ChunkIDs:  []string{chunkID},
+					ID:           inPath,
+					Package:      pkgName,
+					SizeBytes:    inBytes.BytesInOutput,
+					GzipBytes:    estimateGzip(inBytes.BytesInOutput, inPath),
+					IsAppCode:    pkgName == "",
+					ChunkIDs:     []string{chunkID},
+					IngressPaths: p,
 				}
 				seenModules[inPath] = mod
 			}

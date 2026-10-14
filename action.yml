@@ -1,5 +1,5 @@
-name: 'BundleRadar - Angular Bundle Analyzer & PR Reporter'
-description: 'Analyze Angular bundle sizes, estimate Gzip wire transfers, generate PR reports, and enforce size budgets in CI.'
+name: 'BundleRadar - Universal Bundle Analyzer & PR Reporter'
+description: 'Analyze JavaScript bundle sizes from Angular, Vite, Webpack, and esbuild. Estimate Gzip wire transfers, generate PR reports, and enforce size budgets in CI.'
 author: 'Sonu Kumar'
 branding:
   icon: 'package'
@@ -11,7 +11,7 @@ inputs:
     required: false
     default: '.'
   stats:
-    description: 'Path to Angular stats.json (auto-detected if omitted)'
+    description: 'Path to bundle stats file — stats.json, manifest.json, or metafile.json (auto-detected if omitted)'
     required: false
     default: ''
   dist:
@@ -118,6 +118,14 @@ inputs:
     description: 'Automatically post or update PR summary comment'
     required: false
     default: 'false'
+  history:
+    description: 'Record a build checkpoint in the history file after analysis'
+    required: false
+    default: 'false'
+  history-file:
+    description: 'Path to the history file for persistent build checkpoints'
+    required: false
+    default: '.bundleradar-history.json'
 
 outputs:
   initial-bytes:
@@ -546,6 +554,25 @@ runs:
           fi
         fi
         if [ -n "$GATE_OUT" ]; then echo "$GATE_OUT"; fi
+
+    - name: Record Build History Checkpoint
+      if: always() && inputs.history == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_STATS: ${{ inputs.stats }}
+        INPUT_HISTORY_FILE: ${{ inputs.history-file }}
+        COMMIT_SHA: ${{ github.sha }}
+      run: |
+        STATS_PATH="$INPUT_STATS"
+        if [ -z "$STATS_PATH" ]; then
+          STATS_PATH=$(find . -type d \( -name .git -o -name node_modules \) -prune -o -type f -name stats.json -print -quit 2>/dev/null)
+        fi
+        if [ -n "$STATS_PATH" ] && [ -f "$STATS_PATH" ]; then
+          bundleradar history save "$STATS_PATH" \
+            --label "${COMMIT_SHA:0:7}" \
+            --history-file "$INPUT_HISTORY_FILE"
+        fi
 
     - name: Post PR Comment
       if: always() && inputs.post-comment == 'true' && github.event_name == 'pull_request'

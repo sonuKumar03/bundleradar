@@ -15,11 +15,12 @@ import (
 
 // Config configures the live studio HTTP server.
 type Config struct {
-	Host      string
-	Port      int
-	StatsPath string
-	Client    *bundleradar.Client
-	Watch     bool
+	Host        string
+	Port        int
+	StatsPath   string
+	Client      *bundleradar.Client
+	Watch       bool
+	HistoryFile string
 }
 
 // Server provides the live web UI HTTP server adapter.
@@ -34,6 +35,7 @@ type Server struct {
 	listener    net.Listener
 	watch       bool
 	stopWatcher chan struct{}
+	historyFile string
 	checkpoints []*BuildCheckpoint
 	baselineID  string
 	clients     map[chan []byte]struct{}
@@ -56,6 +58,7 @@ func New(cfg Config) (*Server, error) {
 		statsPath:   cfg.StatsPath,
 		client:      cfg.Client,
 		watch:       cfg.Watch,
+		historyFile: cfg.HistoryFile,
 		mux:         http.NewServeMux(),
 		clients:     make(map[chan []byte]struct{}),
 		checkpoints: make([]*BuildCheckpoint, 0),
@@ -101,6 +104,10 @@ func (s *Server) Handler() http.Handler {
 
 // Start binds the listener and starts serving HTTP requests asynchronously.
 func (s *Server) Start() error {
+	if s.historyFile != "" {
+		s.loadHistory()
+	}
+
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {

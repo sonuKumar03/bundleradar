@@ -17,7 +17,7 @@ const (
 	ratioJS       = 0.25
 	ratioText     = 0.35
 	ratioJSON     = 0.30
-	ratioBinary   = 0.0 // already compressed (images, fonts, wasm): gzip adds ~0
+	ratioBinary   = 1.0 // already compressed (images, fonts, wasm): gzip output ≈ raw size
 	ratioFallback = 0.30
 )
 

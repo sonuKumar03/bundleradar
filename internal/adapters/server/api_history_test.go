@@ -46,8 +46,8 @@ func TestServer_CheckpointsAndDiff(t *testing.T) {
 	})
 
 	cp1 := srv.RecordCheckpoint(b1, "Build #1 (Initial Baseline)")
-	if cp1.ID != "build-1" {
-		t.Fatalf("expected ID build-1, got %s", cp1.ID)
+	if cp1.ID == "" {
+		t.Fatalf("expected non-empty checkpoint ID")
 	}
 	if !cp1.IsBaseline {
 		t.Fatalf("first checkpoint should automatically be baseline")
@@ -73,8 +73,8 @@ func TestServer_CheckpointsAndDiff(t *testing.T) {
 	})
 
 	cp2 := srv.RecordCheckpoint(b2, "Build #2 (Removed moment-timezone)")
-	if cp2.ID != "build-2" {
-		t.Fatalf("expected ID build-2, got %s", cp2.ID)
+	if cp2.ID == "" || cp2.ID == cp1.ID {
+		t.Fatalf("expected unique non-empty checkpoint ID, got %s", cp2.ID)
 	}
 
 	ts := httptest.NewServer(srv.Handler())
@@ -102,15 +102,15 @@ func TestServer_CheckpointsAndDiff(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&hist); err != nil {
 		t.Fatalf("decode history failed: %v", err)
 	}
-	if hist.BaselineID != "build-1" {
-		t.Errorf("expected baselineId 'build-1', got %s", hist.BaselineID)
+	if hist.BaselineID != cp1.ID {
+		t.Errorf("expected baselineId %q, got %s", cp1.ID, hist.BaselineID)
 	}
 	if len(hist.Checkpoints) != 2 {
 		t.Fatalf("expected 2 checkpoints, got %d", len(hist.Checkpoints))
 	}
 
 	// 4. Test GET /api/diff
-	diffResp, err := http.Get(ts.URL + "/api/diff?base=build-1&target=build-2")
+	diffResp, err := http.Get(ts.URL + "/api/diff?base=" + cp1.ID + "&target=" + cp2.ID)
 	if err != nil {
 		t.Fatalf("GET /api/diff failed: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestServer_CheckpointsAndDiff(t *testing.T) {
 	}
 
 	// 5. Test POST /api/baseline
-	baseReq, err := http.Post(ts.URL+"/api/baseline?id=build-2", "application/json", nil)
+	baseReq, err := http.Post(ts.URL+"/api/baseline?id="+cp2.ID, "application/json", nil)
 	if err != nil {
 		t.Fatalf("POST /api/baseline failed: %v", err)
 	}
@@ -169,8 +169,8 @@ func TestServer_CheckpointsAndDiff(t *testing.T) {
 		t.Fatalf("expected 200 OK, got %d", baseReq.StatusCode)
 	}
 
-	if srv.BaselineID() != "build-2" {
-		t.Errorf("expected baselineID build-2, got %s", srv.BaselineID())
+	if srv.BaselineID() != cp2.ID {
+		t.Errorf("expected baselineID %q, got %s", cp2.ID, srv.BaselineID())
 	}
 }
 

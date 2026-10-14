@@ -173,6 +173,122 @@ func TestParsersRegistry_WebpackStats(t *testing.T) {
 	}
 }
 
+func TestEsbuildParser_IngressPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	statsPath := filepath.Join(tmpDir, "meta.json")
+	metaContent := `{
+		"inputs": {
+			"src/main.ts": {
+				"bytes": 100,
+				"imports": [{"path": "src/app.ts", "kind": "import-statement"}]
+			},
+			"src/app.ts": {
+				"bytes": 200,
+				"imports": [{"path": "node_modules/lodash/index.js", "kind": "import-statement"}]
+			},
+			"node_modules/lodash/index.js": {
+				"bytes": 50000,
+				"imports": []
+			}
+		},
+		"outputs": {
+			"out/main.js": {
+				"bytes": 50300,
+				"entryPoint": "src/main.ts",
+				"imports": [],
+				"inputs": {
+					"src/main.ts": {"bytesInOutput": 100},
+					"src/app.ts": {"bytesInOutput": 200},
+					"node_modules/lodash/index.js": {"bytesInOutput": 50000}
+				}
+			}
+		}
+	}`
+	if err := os.WriteFile(statsPath, []byte(metaContent), 0644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	p := &parsers.EsbuildParser{}
+	bundle, err := p.Parse(context.Background(), core.Target{
+		Name:      "esbuild-test",
+		StatsPath: statsPath,
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	// Find lodash module and verify ingress path
+	var lodashMod *core.Module
+	for i, m := range bundle.Modules {
+		if m.Package == "lodash" {
+			lodashMod = &bundle.Modules[i]
+			break
+		}
+	}
+	if lodashMod == nil {
+		t.Fatal("lodash module not found")
+	}
+	if len(lodashMod.IngressPaths) == 0 {
+		t.Fatal("expected non-empty IngressPaths for lodash")
+	}
+	// Chain should be: src/main.ts -> src/app.ts -> node_modules/lodash/index.js
+	if len(lodashMod.IngressPaths) != 3 {
+		t.Fatalf("expected 3-step ingress path, got %d: %v", len(lodashMod.IngressPaths), lodashMod.IngressPaths)
+	}
+	if lodashMod.IngressPaths[0] != "src/main.ts" {
+		t.Errorf("expected ingress root src/main.ts, got %q", lodashMod.IngressPaths[0])
+	}
+	if lodashMod.IngressPaths[2] != "node_modules/lodash/index.js" {
+		t.Errorf("expected ingress leaf node_modules/lodash/index.js, got %q", lodashMod.IngressPaths[2])
+	}
+}
+
+func TestWebpackParser_IngressPaths(t *testing.T) {
+	statsPath := filepath.Join("..", "..", "..", "testdata", "webpack-app", "dist", "stats.json")
+	if _, err := os.Stat(statsPath); os.IsNotExist(err) {
+		t.Skip("webpack testdata not found")
+	}
+
+	p := &parsers.WebpackParser{}
+	bundle, err := p.Parse(context.Background(), core.Target{
+		Name:      "webpack-test",
+		StatsPath: statsPath,
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	// Find lodash module and verify ingress path
+	var lodashMod *core.Module
+	for i, m := range bundle.Modules {
+		if m.Package == "lodash" {
+			lodashMod = &bundle.Modules[i]
+			break
+		}
+	}
+	if lodashMod == nil {
+		t.Fatal("lodash module not found")
+	}
+	if len(lodashMod.IngressPaths) == 0 {
+		t.Fatal("expected non-empty IngressPaths for lodash")
+	}
+	// Chain should be: ./src/main.js -> ./node_modules/lodash/lodash.js
+	if lodashMod.IngressPaths[0] != "./src/main.js" {
+		t.Errorf("expected ingress root ./src/main.js, got %q", lodashMod.IngressPaths[0])
+	}
+
+	// Verify module deduplication — modules appearing in multiple chunks should have merged ChunkIDs
+	modCount := make(map[string]int)
+	for _, m := range bundle.Modules {
+		modCount[m.ID]++
+	}
+	for id, count := range modCount {
+		if count > 1 {
+			t.Errorf("module %q appears %d times (should be deduplicated)", id, count)
+		}
+	}
+}
+
 func TestParsersRegistry_RealAngularNxApps(t *testing.T) {
 	reg := parsers.DefaultRegistry()
 	workspaceRoot := filepath.Join("..", "..", "..", "testdata", "nx-workspace")

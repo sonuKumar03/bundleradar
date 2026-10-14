@@ -99,11 +99,11 @@ func TestServer_WatcherAndLiveEvent(t *testing.T) {
 		t.Fatalf("expected at least 2 checkpoints after file modification, got %d", srv.CheckpointCount())
 	}
 
-	cp2 := srv.GetCheckpoint("build-2")
+	cp2 := srv.GetLatestCheckpoint()
 	if cp2 == nil {
-		t.Fatalf("expected build-2 checkpoint")
+		t.Fatalf("expected latest checkpoint after file modification")
 	}
 	if cp2.InitialBytes != 8000 {
-		t.Errorf("expected build-2 initialBytes 8000, got %d", cp2.InitialBytes)
+		t.Errorf("expected latest checkpoint initialBytes 8000, got %d", cp2.InitialBytes)
 	}
 }

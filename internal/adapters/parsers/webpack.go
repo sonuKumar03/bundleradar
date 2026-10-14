@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 )
 
 type WebpackStats struct {
-	AssetsByChunkName map[string]any  `json:"assetsByChunkName"`
-	Chunks            []WebpackChunk  `json:"chunks"`
+	AssetsByChunkName map[string]any   `json:"assetsByChunkName"`
+	Chunks            []WebpackChunk   `json:"chunks"`
+	Assets            []WebpackAsset   `json:"assets"`
 }
 
 type WebpackChunk struct {
@@ -25,6 +27,17 @@ type WebpackChunk struct {
 }
 
 type WebpackModule struct {
+	Name       string              `json:"name"`
+	Size       int64               `json:"size"`
+	IssuerName string              `json:"issuerName"`
+	IssuerPath []WebpackIssuerStep `json:"issuerPath"`
+}
+
+type WebpackIssuerStep struct {
+	Name string `json:"name"`
+}
+
+type WebpackAsset struct {
 	Name string `json:"name"`
 	Size int64  `json:"size"`
 }
@@ -51,6 +64,8 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	bundle := core.NewBundle(core.Metadata{
 		Bundler: "webpack",
 	})
+
+	seenModules := make(map[string]*core.Module)
 
 	for _, wChunk := range stats.Chunks {
 		if err := ctx.Err(); err != nil {
@@ -87,23 +102,28 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			// Real webpack 5 stats nest aggregate rollups (e.g. "runtime
-			// modules", "dependent modules") alongside real modules; those
-			// carry no name and must not become phantom attribution rows.
 			if m.Name == "" {
 				continue
 			}
 			chunk.ModuleIDs = append(chunk.ModuleIDs, m.Name)
 			pkgName := extractPackageName(m.Name)
 
-			bundle.AddModule(core.Module{
-				ID:        m.Name,
-				Package:   pkgName,
-				SizeBytes: m.Size,
-				GzipBytes: estimateGzip(m.Size, m.Name),
-				IsAppCode: pkgName == "",
-				ChunkIDs:  []string{chunkName},
-			})
+			if existing, ok := seenModules[m.Name]; ok {
+				existing.ChunkIDs = append(existing.ChunkIDs, chunkName)
+				existing.SizeBytes += m.Size
+				existing.GzipBytes += estimateGzip(m.Size, m.Name)
+			} else {
+				mod := &core.Module{
+					ID:           m.Name,
+					Package:      pkgName,
+					SizeBytes:    m.Size,
+					GzipBytes:    estimateGzip(m.Size, m.Name),
+					IsAppCode:    pkgName == "",
+					ChunkIDs:     []string{chunkName},
+					IngressPaths: buildWebpackIngressPath(m),
+				}
+				seenModules[m.Name] = mod
+			}
 		}
 
 		bundle.AddChunk(chunk)
@@ -118,10 +138,35 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		}
 	}
 
-	// Register entrypoints. Entrypoint async bytes are only attributed when
-	// there is exactly one entrypoint, where every non-initial chunk is
-	// unambiguously lazy code for it; multi-entry stats carry no reliable
-	// per-entry chunk mapping, so they report 0 rather than a guess.
+	// Add deduplicated modules in sorted order for determinism
+	modIDs := make([]string, 0, len(seenModules))
+	for id := range seenModules {
+		modIDs = append(modIDs, id)
+	}
+	slices.Sort(modIDs)
+	for _, id := range modIDs {
+		bundle.AddModule(*seenModules[id])
+	}
+
+	// Register top-level assets
+	for _, a := range stats.Assets {
+		ext := strings.ToLower(filepath.Ext(a.Name))
+		if ext == ".js" || ext == ".mjs" {
+			continue
+		}
+		gzBytes, estimated := gzipFor(distDir, a.Name, a.Size)
+		bundle.AddAsset(core.Asset{
+			Path:          a.Name,
+			SizeBytes:     a.Size,
+			GzipBytes:     gzBytes,
+			GzipEstimated: estimated,
+			MimeType:      inferMimeType(ext),
+		})
+		if estimated {
+			bundle.GzipEstimated = true
+		}
+	}
+
 	if len(bundle.Entrypoints) == 1 {
 		var asyncBytes int64
 		for _, ch := range bundle.Chunks {
@@ -138,9 +183,24 @@ func (p *WebpackParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	return bundle, nil
 }
 
-// chunkDisplayName derives a stable chunk identifier from real webpack 5 stats.
-// Modern stats may omit both id and names (e.g. optimization-generated async
-// chunks), so fall back to the emitted file name without extension.
+// buildWebpackIngressPath constructs an ingress chain from webpack's issuerPath.
+func buildWebpackIngressPath(m WebpackModule) []string {
+	if len(m.IssuerPath) > 0 {
+		path := make([]string, 0, len(m.IssuerPath)+1)
+		for _, step := range m.IssuerPath {
+			if step.Name != "" {
+				path = append(path, step.Name)
+			}
+		}
+		path = append(path, m.Name)
+		return path
+	}
+	if m.IssuerName != "" {
+		return []string{m.IssuerName, m.Name}
+	}
+	return nil
+}
+
 func chunkDisplayName(c WebpackChunk) string {
 	if len(c.Names) > 0 {
 		return c.Names[0]

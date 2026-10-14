@@ -59,7 +59,7 @@ func TestRunUIServerWithContext(t *testing.T) {
 	cancel() // pre-cancel context to shutdown immediately
 
 	statsPath := filepath.Join("..", "testdata", "minimal", "stats.json")
-	err := runUIServerWithContext(ctx, "127.0.0.1", 0, statsPath, false, false)
+	err := runUIServerWithContext(ctx, "127.0.0.1", 0, statsPath, false, false, "")
 	if err != nil {
 		t.Fatalf("expected nil error on clean shutdown, got %v", err)
 	}

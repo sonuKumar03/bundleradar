@@ -32,10 +32,11 @@ var browserLauncher = func(url string) error {
 
 func newUICommand() *cobra.Command {
 	var (
-		port  int
-		host  string
-		open  bool
-		watch bool
+		port        int
+		host        string
+		open        bool
+		watch       bool
+		historyFile string
 	)
 
 	cmd := &cobra.Command{
@@ -55,7 +56,7 @@ trace package bloat with directed BFS ingress chains, and monitor size metrics.`
 				statsPath = autoDiscoverStatsFile(".")
 			}
 
-			return runUIServerWithContext(cmd.Context(), host, port, statsPath, open, watch)
+			return runUIServerWithContext(cmd.Context(), host, port, statsPath, open, watch, historyFile)
 		},
 	}
 
@@ -63,19 +64,21 @@ trace package bloat with directed BFS ingress chains, and monitor size metrics.`
 	cmd.Flags().StringVar(&host, "host", "127.0.0.1", "Host address to bind HTTP server to")
 	cmd.Flags().BoolVar(&open, "open", true, "Open default browser automatically")
 	cmd.Flags().BoolVarP(&watch, "watch", "w", true, "Watch stats file for changes")
+	cmd.Flags().StringVar(&historyFile, "history-file", ".bundleradar-history.json", "Path to history file for persisting build checkpoints")
 
 	return cmd
 }
 
-func runUIServerWithContext(parentCtx context.Context, host string, port int, statsPath string, openBrowser bool, watch bool) error {
+func runUIServerWithContext(parentCtx context.Context, host string, port int, statsPath string, openBrowser bool, watch bool, historyFile string) error {
 	client := bundleradar.New()
 
 	srv, err := server.New(server.Config{
-		Host:      host,
-		Port:      port,
-		StatsPath: statsPath,
-		Client:    client,
-		Watch:     watch,
+		Host:        host,
+		Port:        port,
+		StatsPath:   statsPath,
+		Client:      client,
+		Watch:       watch,
+		HistoryFile: historyFile,
 	})
 	if err != nil {
 		return &UsageError{Err: fmt.Errorf("failed to initialize studio server: %w", err)}

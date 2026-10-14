@@ -68,6 +68,7 @@ estimates Gzip wire transfer sizes, tracks regressions, and enforces bundle size
 		newGateCommand(),
 		newWorkspaceCommand(),
 		newUICommand(),
+		newHistoryCommand(),
 		mcpCommand(),
 	)
 	return root

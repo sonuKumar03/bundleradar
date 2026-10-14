@@ -35,7 +35,7 @@ func newScanCommand() *cobra.Command {
 			}
 
 			if uiMode {
-				return runUIServerWithContext(c.Context(), "127.0.0.1", 4200, statsPath, true, true)
+				return runUIServerWithContext(c.Context(), "127.0.0.1", 4200, statsPath, true, true, ".bundleradar-history.json")
 			}
 
 			client := bundleradar.New()

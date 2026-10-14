@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
 	"github.com/sonuKumar03/bundleradar/internal/core/diff"
 )
+
+var cpCounter atomic.Int64
 
 // BuildCheckpoint represents a point-in-time bundle scan checkpoint.
 type BuildCheckpoint struct {
@@ -61,7 +65,7 @@ func (s *Server) RecordCheckpoint(bundle *core.Bundle, label string) *BuildCheck
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	cpID := fmt.Sprintf("build-%d", len(s.checkpoints)+1)
+	cpID := fmt.Sprintf("build-%d-%d", time.Now().UnixMilli(), cpCounter.Add(1))
 	if label == "" {
 		label = fmt.Sprintf("Build #%d", len(s.checkpoints)+1)
 	}
@@ -109,6 +113,7 @@ func (s *Server) RecordCheckpoint(bundle *core.Bundle, label string) *BuildCheck
 	}
 
 	s.checkpoints = append(s.checkpoints, cp)
+	s.saveHistory()
 	s.broadcastBuild(cp)
 	return cp
 }
@@ -137,6 +142,16 @@ func (s *Server) GetCheckpoint(id string) *BuildCheckpoint {
 		}
 	}
 	return nil
+}
+
+// GetLatestCheckpoint returns the most recently added checkpoint.
+func (s *Server) GetLatestCheckpoint() *BuildCheckpoint {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.checkpoints) == 0 {
+		return nil
+	}
+	return s.checkpoints[len(s.checkpoints)-1]
 }
 
 func (s *Server) handleGetHistory(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +209,7 @@ func (s *Server) handleSetBaseline(w http.ResponseWriter, r *http.Request) {
 	}
 	if found {
 		s.baselineID = id
+		s.saveHistory()
 	}
 	s.mu.Unlock()
 
@@ -418,4 +434,90 @@ func (s *Server) broadcastBuild(cp *BuildCheckpoint) {
 		default:
 		}
 	}
+}
+
+// historyFile format for JSON persistence.
+type historyFile struct {
+	Version     int                `json:"version"`
+	BaselineID  string             `json:"baselineId"`
+	Checkpoints []*BuildCheckpoint `json:"checkpoints"`
+}
+
+// loadHistory reads persisted checkpoints from the history file.
+// Called once on server startup; failures are silently ignored (fresh start).
+func (s *Server) loadHistory() {
+	if s.historyFile == "" {
+		return
+	}
+	data, err := os.ReadFile(s.historyFile)
+	if err != nil {
+		return
+	}
+	var hf historyFile
+	if err := json.Unmarshal(data, &hf); err != nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.checkpoints = hf.Checkpoints
+	if s.checkpoints == nil {
+		s.checkpoints = make([]*BuildCheckpoint, 0)
+	}
+	s.baselineID = hf.BaselineID
+	for _, cp := range s.checkpoints {
+		if cp.ID == s.baselineID {
+			cp.IsBaseline = true
+		}
+	}
+}
+
+// saveHistory writes the current checkpoints to the history file.
+// Must be called with s.mu held (write lock).
+func (s *Server) saveHistory() {
+	if s.historyFile == "" {
+		return
+	}
+	hf := historyFile{
+		Version:     1,
+		BaselineID:  s.baselineID,
+		Checkpoints: s.checkpoints,
+	}
+	data, err := json.MarshalIndent(hf, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(s.historyFile, data, 0644)
+}
+
+// LoadHistoryFile reads a history file from disk (for CLI use without a server).
+func LoadHistoryFile(path string) ([]*BuildCheckpoint, string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, "", nil
+		}
+		return nil, "", fmt.Errorf("read history file: %w", err)
+	}
+	var hf historyFile
+	if err := json.Unmarshal(data, &hf); err != nil {
+		return nil, "", fmt.Errorf("parse history file: %w", err)
+	}
+	if hf.Checkpoints == nil {
+		hf.Checkpoints = make([]*BuildCheckpoint, 0)
+	}
+	return hf.Checkpoints, hf.BaselineID, nil
+}
+
+// SaveHistoryFile writes checkpoints and baseline to a history file (for CLI use).
+func SaveHistoryFile(path string, checkpoints []*BuildCheckpoint, baselineID string) error {
+	hf := historyFile{
+		Version:     1,
+		BaselineID:  baselineID,
+		Checkpoints: checkpoints,
+	}
+	data, err := json.MarshalIndent(hf, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal history: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
 }

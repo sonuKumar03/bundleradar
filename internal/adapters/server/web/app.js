@@ -38,6 +38,8 @@ function switchTab(tabId) {
     loadAndRenderDiff();
   } else if (tabId === 'side-by-side') {
     loadAndRenderSideBySide();
+  } else if (tabId === 'trends') {
+    renderTrendChart();
   }
 
   if (history.replaceState) {
@@ -248,7 +250,7 @@ async function init() {
 
   // Check URL hash for initial tab deep link
   const hashTab = window.location.hash.replace('#', '');
-  if (['diagnosis', 'compare', 'side-by-side', 'packages', 'treemap'].includes(hashTab)) {
+  if (['diagnosis', 'compare', 'side-by-side', 'packages', 'treemap', 'trends'].includes(hashTab)) {
     switchTab(hashTab);
   }
 
@@ -305,6 +307,8 @@ function setupLiveSync() {
       // If user is in Compare view, update diff live
       if (activeTab === 'compare') {
         loadAndRenderDiff();
+      } else if (activeTab === 'trends') {
+        renderTrendChart();
       }
     } catch (err) {
       console.error('Failed to parse live build event:', err);
@@ -366,6 +370,8 @@ async function loadBuildHistory() {
       loadAndRenderDiff();
     } else if (activeTab === 'side-by-side') {
       loadAndRenderSideBySide();
+    } else if (activeTab === 'trends') {
+      renderTrendChart();
     }
   } catch (err) {
     console.error('Failed to load build history:', err);
@@ -1446,6 +1452,123 @@ function escapeHTML(str) {
   return (str || '').replace(/[&<>"']/g, m => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[m]);
+}
+
+// ==========================================
+// TRENDS CHART (INLINE SVG)
+// ==========================================
+function renderTrendChart() {
+  const container = document.getElementById('trend-chart-container');
+  if (!container) return;
+
+  if (buildHistory.length < 2) {
+    container.innerHTML = `
+      <div class="text-center space-y-2">
+        <div class="text-2xl">📈</div>
+        <p class="text-sm text-[#8b949e] font-mono">Need 2+ builds to show trends.</p>
+        <p class="text-xs text-[#6e7681]">Record checkpoints via the watcher or <code class="text-[#58a6ff]">bundleradar history save</code>.</p>
+      </div>`;
+    return;
+  }
+
+  const W = 800, H = 360;
+  const pad = { top: 30, right: 30, bottom: 60, left: 70 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const points = buildHistory.map((cp, i) => ({
+    idx: i,
+    label: cp.label || cp.id,
+    initial: cp.initialBytes || 0,
+    total: cp.totalBytes || 0,
+    gzip: cp.initialGzipBytes || 0,
+    isBaseline: cp.id === baselineId,
+    ts: cp.timestamp,
+  }));
+
+  const allVals = points.flatMap(p => [p.initial, p.total, p.gzip].filter(v => v > 0));
+  const maxVal = Math.max(...allVals) * 1.1;
+  const minVal = 0;
+
+  const xScale = (i) => pad.left + (plotW * i) / (points.length - 1 || 1);
+  const yScale = (v) => pad.top + plotH - (plotH * (v - minVal)) / (maxVal - minVal || 1);
+
+  const makeLine = (pts, key) => pts.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(p[key]).toFixed(1)}`
+  ).join(' ');
+
+  const lineInitial = makeLine(points, 'initial');
+  const lineTotal = makeLine(points, 'total');
+  const lineGzip = makeLine(points, 'gzip');
+  const hasGzip = points.some(p => p.gzip > 0);
+
+  const yTicks = 5;
+  let gridLines = '';
+  let yLabels = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const val = minVal + (maxVal - minVal) * (i / yTicks);
+    const y = yScale(val);
+    gridLines += `<line x1="${pad.left}" y1="${y}" x2="${W - pad.right}" y2="${y}" stroke="#21262d" stroke-width="1"/>`;
+    yLabels += `<text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" fill="#8b949e" font-size="10" font-family="monospace">${formatBytes(val)}</text>`;
+  }
+
+  let baselines = '';
+  points.forEach((p, i) => {
+    if (p.isBaseline) {
+      const x = xScale(i);
+      baselines += `<line x1="${x}" y1="${pad.top}" x2="${x}" y2="${pad.top + plotH}" stroke="#d29922" stroke-width="1" stroke-dasharray="4,3"/>`;
+      baselines += `<text x="${x}" y="${pad.top - 6}" text-anchor="middle" fill="#d29922" font-size="9" font-family="monospace">📌 baseline</text>`;
+    }
+  });
+
+  let xLabels = '';
+  const maxLabels = 12;
+  const step = Math.max(1, Math.ceil(points.length / maxLabels));
+  points.forEach((p, i) => {
+    if (i % step !== 0 && i !== points.length - 1) return;
+    const x = xScale(i);
+    const shortLabel = p.label.length > 12 ? p.label.slice(0, 12) + '…' : p.label;
+    xLabels += `<text x="${x}" y="${pad.top + plotH + 18}" text-anchor="middle" fill="#8b949e" font-size="9" font-family="monospace" transform="rotate(-25 ${x} ${pad.top + plotH + 18})">${escSvg(shortLabel)}</text>`;
+  });
+
+  let circles = '';
+  points.forEach((p, i) => {
+    const x = xScale(i);
+    circles += `<circle cx="${x}" cy="${yScale(p.total)}" r="3" fill="#8b949e" stroke="#0d1117" stroke-width="1"><title>${escSvg(p.label)}\nTotal: ${formatBytes(p.total)}</title></circle>`;
+    circles += `<circle cx="${x}" cy="${yScale(p.initial)}" r="3" fill="#f85149" stroke="#0d1117" stroke-width="1"><title>${escSvg(p.label)}\nInitial: ${formatBytes(p.initial)}</title></circle>`;
+    if (hasGzip && p.gzip > 0) {
+      circles += `<circle cx="${x}" cy="${yScale(p.gzip)}" r="3" fill="#3fb950" stroke="#0d1117" stroke-width="1"><title>${escSvg(p.label)}\nGzip: ${formatBytes(p.gzip)}</title></circle>`;
+    }
+  });
+
+  const legend = `
+    <g transform="translate(${pad.left + 10}, ${pad.top + 8})">
+      <line x1="0" y1="0" x2="18" y2="0" stroke="#f85149" stroke-width="2"/>
+      <text x="22" y="4" fill="#c9d1d9" font-size="10" font-family="monospace">Initial JS</text>
+      <line x1="90" y1="0" x2="108" y2="0" stroke="#8b949e" stroke-width="2"/>
+      <text x="112" y="4" fill="#c9d1d9" font-size="10" font-family="monospace">Total JS</text>
+      ${hasGzip ? `
+      <line x1="175" y1="0" x2="193" y2="0" stroke="#3fb950" stroke-width="2"/>
+      <text x="197" y="4" fill="#c9d1d9" font-size="10" font-family="monospace">Gzip Est.</text>` : ''}
+    </g>`;
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto max-h-full" style="min-height:280px">
+      <rect width="${W}" height="${H}" fill="transparent"/>
+      ${gridLines}
+      ${yLabels}
+      ${xLabels}
+      ${baselines}
+      <path d="${lineTotal}" fill="none" stroke="#8b949e" stroke-width="2" stroke-linejoin="round"/>
+      <path d="${lineInitial}" fill="none" stroke="#f85149" stroke-width="2" stroke-linejoin="round"/>
+      ${hasGzip ? `<path d="${lineGzip}" fill="none" stroke="#3fb950" stroke-width="2" stroke-linejoin="round" stroke-dasharray="5,3"/>` : ''}
+      ${circles}
+      ${legend}
+    </svg>`;
+}
+
+function escSvg(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function formatBytes(b) {
