@@ -16,7 +16,7 @@
 
 <br>
 
-[**Website & Live Docs**](https://sonukumar03.github.io/bundleradar/) • [**Why bundleradar?**](#-why-bundleradar) • [**Installation**](#-installation) • [**Quick Start**](#-quick-start) • [**Command Reference**](#-command-reference) • [**CI & GitHub Actions**](#-ci--github-actions-integration) • [**AI Agent Skill**](#-ai-agent-skill-integration)
+[**Website & Live Docs**](https://sonukumar03.github.io/bundleradar/) • [**Cheatsheet**](docs/cheatsheet.md) • [**Why bundleradar?**](#-why-bundleradar) • [**Installation**](#-installation) • [**Quick Start**](#-quick-start) • [**Command Reference**](#-command-reference) • [**CI & GitHub Actions**](#-ci--github-actions-integration) • [**AI Agent Skill**](#-ai-agent-skill-integration)
 
 </div>
 
