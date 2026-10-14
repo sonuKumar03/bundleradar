@@ -27,7 +27,7 @@ func buildEsbuildIngressPaths(inputs map[string]EsbuildInput, rootInputs []strin
 				continue
 			}
 			for _, imp := range inData.Imports {
-				if imp.Kind != "import-statement" && !(allowDynamic && imp.Kind == "dynamic-import") {
+				if imp.Kind != "import-statement" && (!allowDynamic || imp.Kind != "dynamic-import") {
 					continue
 				}
 				target := imp.Path
