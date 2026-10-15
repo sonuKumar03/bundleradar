@@ -170,7 +170,7 @@ Add automated bundle size gating and PR delta comments with the official action:
 
 ```yaml
 - name: Bundle Size Guard
-  uses: sonuKumar03/bundleradar@v2.6.0
+  uses: sonuKumar03/bundleradar@v2.6.1
   with:
     stats: dist/my-app/stats.json
     entry: src/main.ts

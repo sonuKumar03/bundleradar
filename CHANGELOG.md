@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-10-15
+
 ### Changed
 
 - "Initial JavaScript" is now JavaScript only. Angular previously added global
@@ -256,7 +258,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.1...HEAD
+[2.6.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.5.1...v2.6.0
 [2.5.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.4.1...v2.5.0

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1",
-  "toolVersion": "2.6.0",
+  "toolVersion": "2.6.1",
   "command": "why",
   "target": "lodash",
   "packageName": "lodash",
