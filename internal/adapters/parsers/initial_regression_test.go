@@ -300,3 +300,70 @@ func TestWhyRetainedSizeFollowsCommonJSRequireCalls(t *testing.T) {
 		t.Fatalf("retained = %d, want 990 (whole CommonJS package incl. data.json)", res.Retained)
 	}
 }
+
+func TestAngularRootsAreExactFileNamesOutsideNodeModules(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"src/main.ts":{},"libs/x/domain.ts":{},"node_modules/pkg/entries/main.js":{}},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":40},"libs/x/domain.ts":{"bytesInOutput":30},"node_modules/pkg/entries/main.js":{"bytesInOutput":30}}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bundle.Graph == nil {
+		t.Fatal("expected an import graph")
+	}
+	for _, r := range bundle.Graph.Roots {
+		if r != "src/main.ts" {
+			t.Fatalf("unexpected root %q; only src/main.ts should be a root", r)
+		}
+	}
+}
+
+func TestWhyIgnoresStaticEdgesIntoLazyOnlyModules(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"src/main.ts":{"imports":[{"path":"src/lazy.ts","kind":"import-statement"}]},"src/lazy.ts":{"imports":[{"path":"node_modules/pkg/index.js","kind":"import-statement"}]},"node_modules/pkg/index.js":{}},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":100}}},"lazy.js":{"bytes":500,"inputs":{"src/lazy.ts":{"bytesInOutput":100},"node_modules/pkg/index.js":{"bytesInOutput":400}}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := reporters.NewWhy("pkg", "json").Render(context.Background(), &out, bundle); err != nil {
+		t.Fatal(err)
+	}
+	var res struct {
+		Retained  int64             `json:"retainedInitialBytes"`
+		Importers []json.RawMessage `json:"importers"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Retained != 0 || len(res.Importers) != 0 {
+		t.Fatalf("lazy-only package: retained=%d importers=%d, want 0 and none", res.Retained, len(res.Importers))
+	}
+}
+
+func TestInitialBytesExcludeStylesheets(t *testing.T) {
+	angular := writeStats(t, "stats.json", `{"inputs":{"node_modules/@angular/core/index.js":{}},"outputs":{"main.js":{"bytes":100,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":100}}},"styles.css":{"bytes":40,"entryPoint":"angular:styles/global:styles","inputs":{}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: angular})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := bundle.Entrypoints["main"].InitialBytes; got != 100 {
+		t.Fatalf("angular initial = %d, want 100 (JS only)", got)
+	}
+	if got := bundle.TotalCSSBytes(); got != 40 {
+		t.Fatalf("angular CSS = %d, want 40 reported separately", got)
+	}
+
+	esb := writeStats(t, "meta.json", `{"inputs":{"src/index.ts":{},"src/app.css":{}},"outputs":{"out/index.js":{"bytes":70,"entryPoint":"src/index.ts","inputs":{"src/index.ts":{"bytesInOutput":70}}},"out/app.css":{"bytes":30,"entryPoint":"src/app.css","inputs":{"src/app.css":{"bytesInOutput":30}}}}}`)
+	bundle, err = (&parsers.EsbuildParser{}).Parse(context.Background(), core.Target{StatsPath: esb})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := bundle.TotalInitialBytes(); got != 70 {
+		t.Fatalf("esbuild initial = %d, want 70 (CSS entry must not count)", got)
+	}
+	if got := bundle.TotalJSBytes(); got != 70 {
+		t.Fatalf("esbuild JS total = %d, want 70", got)
+	}
+	if got := bundle.TotalCSSBytes(); got != 30 {
+		t.Fatalf("esbuild CSS = %d, want 30", got)
+	}
+}

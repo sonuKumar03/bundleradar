@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- "Initial JavaScript" is now JavaScript only. Angular previously added global
+  stylesheets to the initial figure (905,716 bytes on a real 16 MB build), and
+  esbuild counted CSS entry outputs as entrypoints. CSS is reported separately
+  and governed by `--max-css`; the JS total and lazy budgets also exclude CSS
+  chunks. `--max-initial` budgets on Angular builds will read lower.
+
 ### Fixed
 
+- Angular parser: only the app's own `main.ts`/`main.js`/`polyfills.ts`/`styles.css`
+  count as roots (matched by exact file name, outside `node_modules`). A suffix
+  match also caught files like `domain.ts`, so `--why` trails started at
+  unrelated modules.
+- `--why` retained size and importers ignore static edges into modules that
+  only ship in lazy chunks (esbuild keeps unused imports in the metafile), so
+  a lazy-only package no longer reports initial savings.
+- Ingress trails for lazy-only modules start at a lazy route entry instead of
+  a pruned static chain from `main.ts`.
 - `--entry` resolution is deterministic (entrypoints are walked in name order)
   and no longer matches a chunk just because it contains an unrelated module
   with the same file name; module matches require the full path.

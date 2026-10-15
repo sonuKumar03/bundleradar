@@ -77,10 +77,7 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 	// 2. MaxTotal check
 	if p.MaxTotal != nil {
 		limit := *p.MaxTotal
-		var totalBytes int64
-		for _, c := range bundle.Chunks {
-			totalBytes += c.SizeBytes
-		}
+		totalBytes := bundle.TotalJSBytes()
 		if totalBytes > limit {
 			res.Passed = false
 			res.Violations = append(res.Violations, Violation{
@@ -96,7 +93,7 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 		limit := *p.MaxLazy
 		var actual int64
 		for _, chunk := range bundle.Chunks {
-			if chunk.Type == core.LoadTypeAsync {
+			if chunk.Type == core.LoadTypeAsync && !chunk.IsCSS() {
 				actual += chunk.SizeBytes
 			}
 		}
@@ -252,13 +249,8 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 // on any entrypoint, which means root detection failed rather than the app
 // genuinely shipping zero initial JS.
 func initialUnresolved(bundle *core.Bundle) bool {
-	var js, initial int64
-	for _, c := range bundle.Chunks {
-		if strings.HasSuffix(strings.ToLower(c.Path), ".css") {
-			continue
-		}
-		js += c.SizeBytes
-	}
+	var initial int64
+	js := bundle.TotalJSBytes()
 	for _, ep := range bundle.Entrypoints {
 		initial += ep.InitialBytes
 	}

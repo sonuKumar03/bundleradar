@@ -86,7 +86,7 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			rootInputs = append(rootInputs, out.EntryPoint)
 		}
 	}
-	ingressPaths := buildEsbuildIngressPaths(meta.Inputs, rootInputs)
+	ingressPaths := buildEsbuildIngressPaths(meta.Inputs, rootInputs, nil, nil)
 	bundle.Graph = buildImportGraph(meta.Inputs, rootInputs)
 
 	// Process outputs as chunks
@@ -175,8 +175,8 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 
 		bundle.AddChunk(chunk)
 
-		// If entrypoint, register it
-		if out.EntryPoint != "" {
+		// If a JS entrypoint, register it (stylesheets count towards CSS, not initial JS)
+		if out.EntryPoint != "" && ext != ".css" {
 			bundle.AddEntrypoint(out.EntryPoint, core.Entrypoint{
 				Name:             out.EntryPoint,
 				InitialBytes:     out.Bytes,
@@ -204,7 +204,7 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 	}
 	for _, entryPath := range sortedOutputs {
 		out := meta.Outputs[entryPath]
-		if out.EntryPoint == "" {
+		if out.EntryPoint == "" || strings.EqualFold(filepath.Ext(entryPath), ".css") {
 			continue
 		}
 		ep := bundle.Entrypoints[out.EntryPoint]

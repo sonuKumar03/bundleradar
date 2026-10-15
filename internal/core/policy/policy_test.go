@@ -183,3 +183,17 @@ func TestPolicy_FailsWhenInitialRootsUnresolved(t *testing.T) {
 		t.Fatalf("violations = %+v, want INITIAL_SIZE_UNRESOLVED", res.Violations)
 	}
 }
+
+func TestPolicy_TotalAndLazyBudgetsIgnoreCSSChunks(t *testing.T) {
+	b := core.NewBundle(core.Metadata{})
+	b.AddChunk(core.Chunk{ID: "main.js", Path: "main.js", SizeBytes: 100, Type: core.LoadTypeInitial})
+	b.AddChunk(core.Chunk{ID: "lazy.js", Path: "lazy.js", SizeBytes: 50, Type: core.LoadTypeAsync})
+	b.AddChunk(core.Chunk{ID: "lazy.css", Path: "lazy.css", SizeBytes: 900, Type: core.LoadTypeAsync})
+	b.AddEntrypoint("main", core.Entrypoint{Name: "main", InitialBytes: 100})
+	total, lazy := int64(150), int64(50)
+
+	res := policy.Evaluate(b, nil, policy.Policy{MaxTotal: &total, MaxLazy: &lazy})
+	if !res.Passed {
+		t.Fatalf("CSS chunks must not count towards JS budgets: %+v", res.Violations)
+	}
+}

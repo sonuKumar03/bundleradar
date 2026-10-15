@@ -226,9 +226,23 @@ func traceImporters(bundle *core.Bundle, targets map[string]bool) (int64, []WhyI
 	}
 	initialChunks := bundle.InitialChunkSet()
 
-	before := g.StaticReach(nil)
+	// esbuild lists unused imports in the metafile, so a static edge can lead
+	// to a module that only ships in a lazy chunk. Never traverse into those.
+	lazyOnly := make(map[string]bool)
+	for _, m := range bundle.Modules {
+		if len(m.ChunkIDs) > 0 && core.ModuleInitialBytes(m, initialChunks) == 0 {
+			lazyOnly[m.ID] = true
+		}
+	}
+	reach := func(skip func(from, to string) bool) map[string]bool {
+		return g.StaticReach(func(from, to string) bool {
+			return lazyOnly[to] || (skip != nil && skip(from, to))
+		})
+	}
+
+	before := reach(nil)
 	savedBy := func(skip func(from, to string) bool) int64 {
-		after := g.StaticReach(skip)
+		after := reach(skip)
 		var saved int64
 		for id := range before {
 			if !after[id] {

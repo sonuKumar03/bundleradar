@@ -143,6 +143,20 @@ func (b *Bundle) TotalInitialBytes() int64 {
 	return total
 }
 
+// TotalJSBytes returns the sum of all emitted chunk sizes, excluding CSS chunks.
+func (b *Bundle) TotalJSBytes() int64 {
+	var total int64
+	for _, c := range b.Chunks {
+		if !isCSSPath(c.Path) {
+			total += c.SizeBytes
+		}
+	}
+	return total
+}
+
+// IsCSS reports whether the chunk is a stylesheet.
+func (c Chunk) IsCSS() bool { return isCSSPath(c.Path) }
+
 // TotalAsyncBytes returns the sum of async bytes across all entrypoints.
 func (b *Bundle) TotalAsyncBytes() int64 {
 	var total int64

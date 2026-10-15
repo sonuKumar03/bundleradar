@@ -151,13 +151,7 @@ func Calculate(base, current *core.Bundle, opts Options) *BundleDiff {
 	baseLazy := base.TotalAsyncBytes()
 	currInit := current.TotalInitialBytes()
 	currLazy := current.TotalAsyncBytes()
-	var baseTotal, currTotal int64
-	for _, chunk := range base.Chunks {
-		baseTotal += chunk.SizeBytes
-	}
-	for _, chunk := range current.Chunks {
-		currTotal += chunk.SizeBytes
-	}
+	baseTotal, currTotal := base.TotalJSBytes(), current.TotalJSBytes()
 
 	res.Summary = DiffSummary{
 		BaseInitialBytes:  baseInit,

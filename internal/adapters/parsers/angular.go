@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -190,21 +191,21 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			rootInputs = append(rootInputs, out.EntryPoint)
 		}
 		for inPath := range out.Inputs {
-			if strings.HasSuffix(inPath, "main.ts") || strings.HasSuffix(inPath, "main.js") ||
-				strings.HasSuffix(inPath, "polyfills.ts") || strings.HasSuffix(inPath, "styles.css") {
+			if isAngularRootInput(inPath) {
 				rootInputs = append(rootInputs, inPath)
 			}
 		}
 	}
 	if len(rootInputs) == 0 {
 		for inPath := range meta.Inputs {
-			if strings.HasSuffix(inPath, "main.ts") || strings.HasSuffix(inPath, "main.js") {
+			if isAngularRootInput(inPath) {
 				rootInputs = append(rootInputs, inPath)
 			}
 		}
 	}
 
-	ingressPaths := buildEsbuildIngressPaths(meta.Inputs, rootInputs)
+	lazyOnly := lazyOnlyInputs(meta.Outputs, isInitial)
+	ingressPaths := buildEsbuildIngressPaths(meta.Inputs, rootInputs, lazyEntryInputs(meta.Outputs, sortedOutputs, isInitial), lazyOnly)
 	bundle.Graph = buildImportGraph(meta.Inputs, rootInputs)
 
 	seenModules := make(map[string]*core.Module)
@@ -223,12 +224,6 @@ func (p *AngularParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 		// Non-JS assets (CSS, images, fonts, licenses)
 		if ext != ".js" && ext != ".mjs" {
 			gzBytes, estimated := gzipFor(distDir, outPath, out.Bytes)
-			if ext == ".css" && (isInitial[outPath] || isInitial[baseName]) {
-				// Global initial stylesheet
-				initialBytes += out.Bytes
-				initialGzipBytes += gzBytes
-				initialChunkIDs = append(initialChunkIDs, baseName)
-			}
 			bundle.AddAsset(core.Asset{
 				Path:          outPath,
 				SizeBytes:     out.Bytes,
@@ -417,4 +412,55 @@ func isAngularRootOutput(outPath string, out EsbuildOutput) bool {
 		}
 	}
 	return entry == "" && (strings.HasPrefix(lowerBase, "main") || strings.HasPrefix(lowerBase, "polyfills"))
+}
+
+// isAngularRootInput matches the application's own main/polyfills/styles
+// source files by exact file name. A suffix match would also catch files like
+// domain.ts or node_modules/pkg/entries/main.js.
+func isAngularRootInput(inPath string) bool {
+	if strings.HasPrefix(inPath, "node_modules/") || strings.Contains(inPath, "/node_modules/") {
+		return false
+	}
+	switch path.Base(inPath) {
+	case "main.ts", "main.js", "polyfills.ts", "styles.css":
+		return true
+	}
+	return false
+}
+
+// lazyOnlyInputs returns inputs that appear only in outputs outside the
+// initial bundle.
+func lazyOnlyInputs(outputs map[string]EsbuildOutput, isInitial map[string]bool) map[string]bool {
+	inInitial := make(map[string]bool)
+	inLazy := make(map[string]bool)
+	for outPath, out := range outputs {
+		target := inLazy
+		if isInitial[outPath] || isInitial[filepath.Base(outPath)] {
+			target = inInitial
+		}
+		for in := range out.Inputs {
+			target[in] = true
+		}
+	}
+	lazyOnly := make(map[string]bool, len(inLazy))
+	for in := range inLazy {
+		if !inInitial[in] {
+			lazyOnly[in] = true
+		}
+	}
+	return lazyOnly
+}
+
+// lazyEntryInputs returns the entry inputs of outputs outside the initial
+// bundle (lazy route modules), in output order.
+func lazyEntryInputs(outputs map[string]EsbuildOutput, sortedOutputs []string, isInitial map[string]bool) []string {
+	var entries []string
+	for _, outPath := range sortedOutputs {
+		out := outputs[outPath]
+		if out.EntryPoint == "" || isInitial[outPath] || isInitial[filepath.Base(outPath)] {
+			continue
+		}
+		entries = append(entries, out.EntryPoint)
+	}
+	return entries
 }

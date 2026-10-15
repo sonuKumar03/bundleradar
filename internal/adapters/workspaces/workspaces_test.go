@@ -179,8 +179,8 @@ func TestNxResolver_EndToEndAngularScan(t *testing.T) {
 				t.Errorf("admin-dashboard initial bytes mismatch: got %d, want 1151927", ep.InitialBytes)
 			}
 		case "portal":
-			if ep.InitialBytes != 2186272 {
-				t.Errorf("portal initial bytes mismatch: got %d, want 2186272", ep.InitialBytes)
+			if ep.InitialBytes != 2179419 {
+				t.Errorf("portal initial bytes mismatch: got %d, want 2179419", ep.InitialBytes)
 			}
 			if ep.AsyncBytes != 88854 {
 				t.Errorf("portal async bytes mismatch: got %d, want 88854", ep.AsyncBytes)
