@@ -34,6 +34,15 @@ bundleradar workspace list --root .
 bundleradar workspace scan --app "app1=apps/app1/stats.json" --app "app2=apps/app2/stats.json" -f json
 ```
 
+## Update
+
+```sh
+bundleradar update --check
+bundleradar update
+```
+
+`update` replaces the binary with the latest verified release. Run it only when the user asks; interactive runs also print a once-a-week notice (`BUNDLERADAR_NO_UPDATE_CHECK=1` disables it).
+
 ## Failures
 
 Capture stdout, stderr, and exit status separately.

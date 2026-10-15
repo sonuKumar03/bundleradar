@@ -176,7 +176,7 @@ The CLI emits the following observed fields with `--format json`. These outputs 
 | Field | Meaning |
 | :--- | :--- |
 | `metadata.bundler` | Detected or selected bundler. |
-| `entrypoints.<name>` | Entrypoint name, `initialBytes`, `initialGzipBytes`, `asyncBytes`, and `chunkIds`. |
+| `entrypoints.<name>` | Entrypoint name, `initialBytes`, `initialGzipBytes`, `asyncBytes`, and `chunkIds`. Byte totals are JavaScript only; CSS is reported through `assets` and `--max-css`. |
 | `chunks[]` | Emitted output details: `id`, `name`, `path`, `sizeBytes`, `gzipBytes`, `type`, `entry`, and `moduleIds`. |
 | `modules[]` | Input details: `id`, `package`, `sizeBytes`, `gzipBytes`, `isAppCode`, and `chunkIds`; version and per-chunk fields may be present when available. |
 | `assets[]` | Auxiliary output details: `path`, `sizeBytes`, `gzipBytes`, and `mimeType`. |

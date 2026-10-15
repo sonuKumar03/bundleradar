@@ -48,7 +48,7 @@ Never assume the BundleRadar repository or a local `./install.sh` exists. MCP an
 1. Build production stats when artifacts are missing or stale, normally with `ng build --configuration production --stats-json`.
 2. Capture the pre-edit baseline.
 3. Rank candidates with `scan`.
-4. Confirm one candidate with `scan --why <pkg>`, then inspect its actual application source usage.
+4. Confirm one candidate with `scan --why <pkg>`, then inspect its actual application source usage. Use `retainedInitialBytes` for the realistic saving and `importers[].savingBytes` to see which import to cut; if every importer saves 0, all of them must go.
 5. Make the smallest authorized application change; preserve unrelated work.
 6. Rebuild production stats and run relevant application tests.
 7. Measure against the baseline with `diff` and run budget enforcement with `gate`.

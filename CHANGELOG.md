@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: skill references, agent docs and the docs site now cover JS-only
+  initial size, `--why` retained size and importers, the new diff fields, and
+  `bundleradar update`.
+
 ## [2.6.1] - 2026-10-15
 
 ### Changed

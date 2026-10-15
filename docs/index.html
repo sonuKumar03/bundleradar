@@ -643,6 +643,28 @@
             </div>
           </div>
 
+          <!-- CMD 6: update -->
+          <div id="cmd-update" class="scroll-mt-20 p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <span class="w-6 h-6 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center font-mono font-bold text-xs">6</span>
+                <h3 class="text-base font-mono font-bold text-sky-300">bundleradar update [--check] [--version &lt;tag&gt;]</h3>
+              </div>
+              <span class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/30">Self-update</span>
+            </div>
+
+            <p class="text-sm text-slate-300">
+              Downloads the latest release for your platform, verifies it against the release checksums, and replaces the running binary. Interactive terminals get a one-line new-version notice at most once a week; set <code class="text-slate-200">BUNDLERADAR_NO_UPDATE_CHECK=1</code> to turn it off. It never runs in CI.
+            </p>
+
+            <div class="rounded-xl border border-slate-800 bg-[#090e1a] p-4 font-mono text-xs text-slate-200 space-y-2 overflow-x-auto shadow-inner">
+              <div class="text-slate-400">$ <span class="text-indigo-300 font-semibold">bundleradar update --check</span></div>
+              <div class="text-slate-300">bundleradar 2.6.0 is installed; 2.6.1 is available. Run `bundleradar update`.</div>
+              <div class="text-slate-400 pt-2">$ <span class="text-indigo-300 font-semibold">bundleradar update</span></div>
+              <div class="text-emerald-300">Updated /usr/local/bin/bundleradar to 2.6.1.</div>
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -832,6 +854,7 @@ jobs:
           <div>Released under the MIT License • Written in Go for Angular, Vite, Webpack &amp; esbuild.</div>
           <nav aria-label="Footer links" class="flex items-center space-x-6">
             <a href="https://github.com/sonuKumar03/bundleradar" target="_blank" rel="noopener noreferrer" class="hover:text-slate-200 focus:outline-none focus:underline">GitHub</a>
+            <a href="https://github.com/sonuKumar03/bundleradar/blob/master/docs/cheatsheet.md" target="_blank" rel="noopener noreferrer" class="hover:text-slate-200 focus:outline-none focus:underline">Cheatsheet</a>
             <a href="https://github.com/sonuKumar03/bundleradar/releases" target="_blank" rel="noopener noreferrer" class="hover:text-slate-200 focus:outline-none focus:underline">Releases</a>
             <a href="https://github.com/sonuKumar03/bundleradar/blob/master/LICENSE" target="_blank" rel="noopener noreferrer" class="hover:text-slate-200 focus:outline-none focus:underline">License</a>
           </nav>
