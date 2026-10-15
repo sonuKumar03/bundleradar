@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-10-15
+
 ### Added
 
 - `bundleradar update`: self-update to the latest release (or `--version`
@@ -231,7 +233,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.5.1...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.5.1...v2.6.0
 [2.5.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.4.0...v2.4.1
