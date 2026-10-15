@@ -190,3 +190,36 @@ func TestBundleIndexLifecycleAcrossSerialization(t *testing.T) {
 	}
 }
 
+
+func multiEntryBundle() *core.Bundle {
+	b := core.NewBundle(core.Metadata{Bundler: "esbuild"})
+	for _, name := range []string{"src/app/a/route.ts", "src/app/b/route.ts", "src/main.ts"} {
+		id := name + ".js"
+		b.AddChunk(core.Chunk{ID: id, Name: id, Path: id, Entry: name, ModuleIDs: []string{name}})
+		b.AddEntrypoint(name, core.Entrypoint{Name: name, ChunkIDs: []string{id}})
+	}
+	// A lazy chunk of another entry happens to contain a module named main.js.
+	b.AddChunk(core.Chunk{ID: "lazy.js", Name: "lazy.js", Path: "lazy.js", ModuleIDs: []string{"node_modules/foo/main.js"}})
+	b.AddEntrypoint("src/app/a/route.ts", core.Entrypoint{Name: "src/app/a/route.ts", ChunkIDs: []string{"src/app/a/route.ts.js", "lazy.js"}})
+	return b
+}
+
+func TestResolveEntrypointIgnoresUnrelatedModulesWithSameFileName(t *testing.T) {
+	b := multiEntryBundle()
+	if ep, ok := b.ResolveEntrypoint("main.js"); ok {
+		t.Fatalf("main.js matched %q only because an unrelated module has that file name", ep.Name)
+	}
+	if ep, ok := b.ResolveEntrypoint("node_modules/foo/main.js"); !ok || ep.Name != "src/app/a/route.ts" {
+		t.Fatalf("exact module path should still resolve, got %v %v", ep, ok)
+	}
+}
+
+func TestResolveEntrypointIsDeterministic(t *testing.T) {
+	b := multiEntryBundle()
+	for range 50 {
+		ep, ok := b.ResolveEntrypoint("route.ts")
+		if !ok || ep.Name != "src/app/a/route.ts" {
+			t.Fatalf("ambiguous query must resolve to the first entrypoint by name, got %v %v", ep, ok)
+		}
+	}
+}

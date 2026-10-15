@@ -3,6 +3,7 @@ package core
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -295,8 +296,12 @@ func (b *Bundle) ResolveEntrypoint(query string) (*Entrypoint, bool) {
 		return &ep, true
 	}
 
+	// Walk entrypoints in name order so ties resolve the same way every run.
+	names := slices.Sorted(maps.Keys(b.Entrypoints))
+
 	// 2. Case-insensitive or extless match on Entrypoint name
-	for name, ep := range b.Entrypoints {
+	for _, name := range names {
+		ep := b.Entrypoints[name]
 		if strings.EqualFold(name, query) || strings.EqualFold(name, cleanQuery) {
 			return &ep, true
 		}
@@ -328,7 +333,7 @@ func (b *Bundle) ResolveEntrypoint(query string) (*Entrypoint, bool) {
 
 		for _, mID := range c.ModuleIDs {
 			cleanMID := filepath.Clean(strings.TrimPrefix(mID, "./"))
-			if cleanMID == cleanQuery || filepath.Base(cleanMID) == baseQuery {
+			if cleanMID == cleanQuery {
 				return true
 			}
 		}
@@ -337,7 +342,8 @@ func (b *Bundle) ResolveEntrypoint(query string) (*Entrypoint, bool) {
 	}
 
 	// 3. Search chunk associations within each Entrypoint
-	for _, ep := range b.Entrypoints {
+	for _, name := range names {
+		ep := b.Entrypoints[name]
 		for _, cid := range ep.ChunkIDs {
 			chunk, ok := b.FindChunk(cid)
 			if !ok {
@@ -352,7 +358,8 @@ func (b *Bundle) ResolveEntrypoint(query string) (*Entrypoint, bool) {
 	// 4. Fallback: search all chunks in bundle and find corresponding Entrypoint
 	for _, chunk := range b.Chunks {
 		if chunkMatches(chunk) {
-			for _, ep := range b.Entrypoints {
+			for _, name := range names {
+				ep := b.Entrypoints[name]
 				for _, cid := range ep.ChunkIDs {
 					if cid == chunk.ID || cid == chunk.Name || cid == chunk.Path {
 						return &ep, true
@@ -360,9 +367,8 @@ func (b *Bundle) ResolveEntrypoint(query string) (*Entrypoint, bool) {
 				}
 			}
 			if len(b.Entrypoints) == 1 {
-				for _, ep := range b.Entrypoints {
-					return &ep, true
-				}
+				ep := b.Entrypoints[names[0]]
+				return &ep, true
 			}
 		}
 	}

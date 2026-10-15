@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `--entry` resolution is deterministic (entrypoints are walked in name order)
+  and no longer matches a chunk just because it contains an unrelated module
+  with the same file name; module matches require the full path.
+
 ## [2.6.0] - 2026-10-15
 
 ### Added
