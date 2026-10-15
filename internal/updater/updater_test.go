@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -148,7 +149,7 @@ func TestInstallReplacesBinaryAfterVerifyingChecksum(t *testing.T) {
 	if string(got) != "NEW-BINARY" {
 		t.Fatalf("binary = %q, want NEW-BINARY", got)
 	}
-	if fi, _ := os.Stat(target); fi.Mode()&0o111 == 0 {
+	if fi, _ := os.Stat(target); runtime.GOOS != "windows" && fi.Mode()&0o111 == 0 {
 		t.Fatalf("installed binary is not executable: %v", fi.Mode())
 	}
 	if entries, _ := os.ReadDir(filepath.Dir(target)); len(entries) != 1 {
