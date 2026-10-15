@@ -76,6 +76,14 @@ Micro-drift: 70.31 KB across sub-threshold updates
 curl -fsSL https://raw.githubusercontent.com/sonuKumar03/bundleradar/master/install.sh | sh
 ```
 
+**Update:**
+
+```bash
+bundleradar update
+```
+
+`bundleradar update --check` only reports whether a newer release exists, and `--version v2.5.1` installs a specific release. Downloads are verified against the release's `checksums.txt` before the binary is replaced. In an interactive terminal, bundleradar mentions a newer release at most once every 7 days; set `BUNDLERADAR_NO_UPDATE_CHECK=1` to turn that off. It never runs in CI, when output is piped, or for `mcp`.
+
 **Uninstall** (removes the binary and any installed agent skills):
 
 ```bash
@@ -150,6 +158,7 @@ bundleradar gate dist/my-app/stats.json --max-initial 250kb --max-total 1.2mb
 | `bundleradar mcp` | Launch MCP server for AI coding agents (Claude Code, Cursor, Claude Desktop) |
 | `bundleradar history save/list/show` | Record and inspect persistent build history checkpoints |
 | `bundleradar ui` | Open interactive Studio UI with treemap, trends, and live file watching |
+| `bundleradar update` | Update to the latest release (`--check` to only look, `--version` to pin) |
 
 All commands support `--format json` for machine-readable output. `--entry` / `-e` scopes initial/lazy reachability to a source path or exact chunk name (globs are not supported); `TotalJS` always reflects the whole browser build. See the [**full docs**](https://sonukumar03.github.io/bundleradar/) for detailed flags and examples.
 

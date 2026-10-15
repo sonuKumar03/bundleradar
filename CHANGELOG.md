@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bundleradar update`: self-update to the latest release (or `--version`
+  to pin one), verified against the release `checksums.txt` and installed
+  atomically over the running binary; `--check` only reports availability.
+- New-version notice: at most one line on stderr every 7 days in interactive
+  terminals, from a once-a-day cached release lookup. Skipped in CI, when
+  output is piped or discarded, and for `mcp`; disable with
+  `BUNDLERADAR_NO_UPDATE_CHECK=1`.
+
 ## [2.5.1] - 2026-10-15
 
 ### Fixed

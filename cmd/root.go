@@ -69,6 +69,7 @@ estimates Gzip wire transfer sizes, tracks regressions, and enforces bundle size
 		newWorkspaceCommand(),
 		newUICommand(),
 		newHistoryCommand(),
+		newUpdateCommand(),
 		mcpCommand(),
 	)
 	return root
@@ -79,7 +80,12 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	root.SetArgs(args)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	if err := root.Execute(); err != nil {
+
+	notice := startUpdateCheck(args, stderr)
+	err := root.Execute()
+	defer printUpdateNotice(notice, stderr)
+
+	if err != nil {
 		fmt.Fprintf(stderr, "bundleradar: %v\n", err)
 		return MapErrorToExitCode(err)
 	}

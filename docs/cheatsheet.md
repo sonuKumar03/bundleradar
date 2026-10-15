@@ -84,6 +84,21 @@ bundleradar history list
 bundleradar history show <id>
 ```
 
+## Update
+
+```bash
+# Update to the latest release
+bundleradar update
+
+# Only check whether a newer version exists
+bundleradar update --check
+
+# Install a specific release
+bundleradar update --version v2.5.1
+```
+
+A new-version notice appears at most once every 7 days in interactive terminals. Disable it with `BUNDLERADAR_NO_UPDATE_CHECK=1`; it never runs in CI or for `mcp`.
+
 ## MCP Server (AI Agents)
 
 ```bash
