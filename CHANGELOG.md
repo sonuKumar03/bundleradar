@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Import graph and ingress paths now follow CommonJS `require()` edges, so
+  `--why` retained size and importer savings are correct for CJS packages
+  (e.g. moment-timezone, exceljs).
+- Diff ranks packages by the larger of their total and initial-bundle change,
+  so a package moving into the initial bundle is not buried under noise.
+
 ## [2.5.0] - 2026-10-15
 
 ### Fixed

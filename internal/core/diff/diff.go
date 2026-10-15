@@ -278,8 +278,8 @@ func Calculate(base, current *core.Bundle, opts Options) *BundleDiff {
 	res.FirstParty = diffFirstParty(base, current)
 
 	slices.SortFunc(res.Packages, func(a, b PackageDelta) int {
-		absA := math.Abs(float64(a.DeltaBytes))
-		absB := math.Abs(float64(b.DeltaBytes))
+		absA := max(math.Abs(float64(a.DeltaBytes)), math.Abs(float64(a.InitialDelta)))
+		absB := max(math.Abs(float64(b.DeltaBytes)), math.Abs(float64(b.InitialDelta)))
 		if absA != absB {
 			return cmp.Compare(absB, absA)
 		}

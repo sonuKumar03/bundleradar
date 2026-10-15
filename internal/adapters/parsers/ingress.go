@@ -2,6 +2,12 @@ package parsers
 
 import "github.com/sonuKumar03/bundleradar/internal/core"
 
+// isStaticImportKind reports edges that load a module at startup. CommonJS
+// require() calls are static: esbuild inlines them into the importing chunk.
+func isStaticImportKind(kind string) bool {
+	return kind == "import-statement" || kind == "require-call"
+}
+
 // buildEsbuildIngressPaths computes an import chain from the roots to every
 // reachable module. Static ("import-statement") chains are preferred so a
 // path explains why a module ships in the initial bundle; only modules that
@@ -27,7 +33,7 @@ func buildEsbuildIngressPaths(inputs map[string]EsbuildInput, rootInputs []strin
 				continue
 			}
 			for _, imp := range inData.Imports {
-				if imp.Kind != "import-statement" && (!allowDynamic || imp.Kind != "dynamic-import") {
+				if !isStaticImportKind(imp.Kind) && (!allowDynamic || imp.Kind != "dynamic-import") {
 					continue
 				}
 				target := imp.Path
@@ -57,7 +63,7 @@ func buildImportGraph(inputs map[string]EsbuildInput, rootInputs []string) *core
 	g := &core.ImportGraph{Roots: rootInputs, Edges: make(map[string][]core.ImportEdge, len(inputs))}
 	for id, in := range inputs {
 		for _, imp := range in.Imports {
-			if imp.Path == "" || (imp.Kind != "import-statement" && imp.Kind != "dynamic-import") {
+			if imp.Path == "" || (!isStaticImportKind(imp.Kind) && imp.Kind != "dynamic-import") {
 				continue
 			}
 			g.Edges[id] = append(g.Edges[id], core.ImportEdge{To: imp.Path, Dynamic: imp.Kind == "dynamic-import"})

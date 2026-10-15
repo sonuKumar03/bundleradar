@@ -279,3 +279,24 @@ func TestWhyReportsRetainedSizeAndImporters(t *testing.T) {
 		t.Fatalf("solo retained=%d savings=%v, want 50 and c.ts saving 50", retained, savings)
 	}
 }
+
+func TestWhyRetainedSizeFollowsCommonJSRequireCalls(t *testing.T) {
+	stats := writeStats(t, "stats.json", `{"inputs":{"src/main.ts":{"imports":[{"path":"node_modules/cjs/index.js","kind":"import-statement"}]},"node_modules/cjs/index.js":{"imports":[{"path":"node_modules/cjs/impl.js","kind":"require-call"}]},"node_modules/cjs/impl.js":{"imports":[{"path":"node_modules/cjs/data.json","kind":"require-call"}]},"node_modules/cjs/data.json":{}},"outputs":{"main.js":{"bytes":1000,"entryPoint":"src/main.ts","inputs":{"src/main.ts":{"bytesInOutput":10},"node_modules/cjs/index.js":{"bytesInOutput":5},"node_modules/cjs/impl.js":{"bytesInOutput":85},"node_modules/cjs/data.json":{"bytesInOutput":900}}}}}`)
+	bundle, err := (&parsers.AngularParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := reporters.NewWhy("cjs", "json").Render(context.Background(), &out, bundle); err != nil {
+		t.Fatal(err)
+	}
+	var res struct {
+		Retained int64 `json:"retainedInitialBytes"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Retained != 990 {
+		t.Fatalf("retained = %d, want 990 (whole CommonJS package incl. data.json)", res.Retained)
+	}
+}

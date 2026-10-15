@@ -218,3 +218,22 @@ func TestDiff_HashedChunkRenameIsAChange(t *testing.T) {
 		t.Fatalf("changed = %+v", d.ChangedChunks)
 	}
 }
+
+func TestDiff_PackagesRankByInitialMovementToo(t *testing.T) {
+	mk := func(noise, big int64, bigInitial bool) *core.Bundle {
+		b := core.NewBundle(core.Metadata{})
+		b.AddChunk(core.Chunk{ID: "main.js", SizeBytes: 100, Type: core.LoadTypeInitial})
+		b.AddChunk(core.Chunk{ID: "lazy.js", SizeBytes: 100, Type: core.LoadTypeAsync})
+		b.AddModule(core.Module{ID: "node_modules/noisy/a.js", Package: "noisy", SizeBytes: noise, ChunkIDs: []string{"main.js"}, ChunkBytes: map[string]int64{"main.js": noise}})
+		chunk := "lazy.js"
+		if bigInitial {
+			chunk = "main.js"
+		}
+		b.AddModule(core.Module{ID: "node_modules/big/a.js", Package: "big", SizeBytes: big, ChunkIDs: []string{chunk}, ChunkBytes: map[string]int64{chunk: big}})
+		return b
+	}
+	d := diff.Calculate(mk(1000, 5000, false), mk(1300, 5100, true), diff.Options{})
+	if len(d.Packages) < 2 || d.Packages[0].Name != "big" {
+		t.Fatalf("packages = %+v, want big (initial +5100) ranked before noisy (+300)", d.Packages)
+	}
+}
