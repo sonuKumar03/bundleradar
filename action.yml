@@ -230,13 +230,13 @@ runs:
           if [ -n "$INPUT_PROJECTS" ]; then
             DISCOVERED=$(bundleradar workspace scan -f json)
             SELECTED_SPECS=$(node -e '
-              const data = JSON.parse(process.argv[1]);
-              for (const name of process.argv[2].split(/[,\s]+/).filter(Boolean)) {
+              const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
+              for (const name of process.argv[1].split(/[,\s]+/).filter(Boolean)) {
                 const target = data.targets.find(t => t.name === name);
                 if (!target) { console.error(`Project ${name} was not found or could not be scanned`); process.exit(1); }
                 console.log(`${name}=${target.statsPath}${target.distPath ? `:${target.distPath}` : ""}`);
               }
-            ' "$DISCOVERED" "$INPUT_PROJECTS")
+            ' "$INPUT_PROJECTS" <<< "$DISCOVERED")
             while IFS= read -r spec; do
               [ -n "$spec" ] && WS_FLAGS+=("--app" "$spec")
             done <<< "$SELECTED_SPECS"
@@ -262,10 +262,10 @@ runs:
 
           # Parse multi-app metrics strictly
           PARSED_METRICS=$(node -e '
-            const data = process.argv[1];
+            const data = require("fs").readFileSync(0, "utf8");
             try {
               const parsed = JSON.parse(data);
-              if (parsed.targets.length !== Number(process.argv[2])) throw new Error("one or more selected applications could not be scanned");
+              if (parsed.targets.length !== Number(process.argv[1])) throw new Error("one or more selected applications could not be scanned");
               const initial = parsed.totalInitialBytes || 0;
               const lazy = parsed.totalAsyncBytes || 0;
               const total = parsed.totalBytes || (initial + lazy);
@@ -274,7 +274,7 @@ runs:
               console.error("Failed to parse bundleradar workspace JSON output:", e.message);
               process.exit(1);
             }
-          ' "$JSON_OUT" "$((${#WS_FLAGS[@]} / 2))")
+          ' "$((${#WS_FLAGS[@]} / 2))" <<< "$JSON_OUT")
 
           read -r INITIAL LAZY TOTAL <<< "$PARSED_METRICS"
 
@@ -289,7 +289,7 @@ runs:
             echo "comparison_message=No baseline configured; multi-app workspace report contains current scans only" >> "$GITHUB_OUTPUT"
           fi
 
-          TARGET_STATS=$(node -e 'console.log(JSON.parse(process.argv[1]).targets.map(t => `${t.statsPath}\t${t.distPath || ""}`).join("\n"))' "$JSON_OUT")
+          TARGET_STATS=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).targets.map(t => `${t.statsPath}\t${t.distPath || ""}`).join("\n"))' <<< "$JSON_OUT")
           while IFS=$'\t' read -r stats dist; do
             [ -z "$stats" ] && continue
             GATE_FLAGS=("$stats")
@@ -319,7 +319,7 @@ runs:
 
         if [ -z "$INPUT_STATS" ]; then
           STATS_CANDIDATES=()
-          while IFS= read -r -d '' stats; do STATS_CANDIDATES+=("$stats"); done < <(find . -type d \( -name .git -o -name node_modules \) -prune -o -type f -name stats.json -print0)
+          while IFS= read -r -d '' stats; do STATS_CANDIDATES+=("$stats"); done < <(find . -type d \( -name .git -o -name node_modules -o -name .nx -o -name .angular -o -name .turbo -o -name .cache \) -prune -o -type f -name stats.json -print0)
           INPUT_STATS=$(node -e '
             const path = require("path");
             const candidates = process.argv.slice(1, -1);
@@ -330,7 +330,7 @@ runs:
             if (matches.length !== 1) {
               console.error(matches.length === 0
                 ? `Unable to auto-detect stats.json${project ? ` for project ${project}` : ""}; set the stats input.`
-                : `Found ${matches.length} stats.json files${project ? ` for project ${project}` : ""}; set the project or stats input.`);
+                : `Found ${matches.length} stats.json files${project ? ` for project ${project}` : ""} (${matches.join(", ")}); set the stats input to pick one.`);
               process.exit(2);
             }
             console.log(matches[0]);
@@ -495,7 +495,7 @@ runs:
 
         # Parse metrics strictly - fail if JSON is malformed or missing required summary fields
         PARSED_METRICS=$(node -e '
-          const data = process.argv[1];
+          const data = require("fs").readFileSync(0, "utf8");
           try {
             const parsed = JSON.parse(data);
             let initial = 0;
@@ -519,7 +519,7 @@ runs:
             console.error("Failed to parse bundleradar JSON scan output:", e.message);
             process.exit(1);
           }
-        ' "$JSON_OUT")
+        ' <<< "$JSON_OUT")
 
         read -r INITIAL LAZY TOTAL <<< "$PARSED_METRICS"
 
