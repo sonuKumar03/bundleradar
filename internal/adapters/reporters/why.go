@@ -50,12 +50,16 @@ type WhyImporter struct {
 type WhyReporter struct {
 	Target     string
 	FormatName string // "terminal" (default) or "json"
+	found      bool
 }
 
 // NewWhy creates a WhyReporter bound to a trace target.
 func NewWhy(target, format string) *WhyReporter {
 	return &WhyReporter{Target: target, FormatName: strings.ToLower(strings.TrimSpace(format))}
 }
+
+// Found reports whether the last Render located the target in the bundle.
+func (r *WhyReporter) Found() bool { return r.found }
 
 func (r *WhyReporter) Format() string {
 	if r.FormatName == "json" {
@@ -161,6 +165,8 @@ func (r *WhyReporter) Render(ctx context.Context, w io.Writer, data any) error {
 	if res.Found && bundle.Graph != nil {
 		res.RetainedInitialBytes, res.Importers = traceImporters(bundle, targetIDs)
 	}
+
+	r.found = res.Found
 
 	if r.FormatName == "json" {
 		enc := json.NewEncoder(w)

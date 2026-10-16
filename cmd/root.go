@@ -56,6 +56,15 @@ It calculates accurate initial vs. async byte totals, attributes npm package siz
 estimates Gzip wire transfer sizes, tracks regressions, and enforces bundle size budgets in CI.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		// Cobra's default root arg check returns a plain error that maps to
+		// the execution-failure exit code; an unknown subcommand is a usage error.
+		Args: func(c *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return &UsageError{Err: fmt.Errorf("unknown command %q for %q", args[0], c.CommandPath())}
+			}
+			return nil
+		},
+		RunE: func(c *cobra.Command, args []string) error { return c.Help() },
 	}
 	// Classify Cobra flag/argument errors as typed usage errors so exit-code
 	// mapping never depends on error message strings.
@@ -72,6 +81,16 @@ estimates Gzip wire transfer sizes, tracks regressions, and enforces bundle size
 		newUpdateCommand(),
 		mcpCommand(),
 	)
+	root.InitDefaultCompletionCmd()
+	if comp, _, err := root.Find([]string{"completion"}); err == nil && comp != nil && comp.Name() == "completion" {
+		comp.Args = func(c *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return &UsageError{Err: fmt.Errorf("unknown shell %q; supported: bash, zsh, fish, powershell", args[0])}
+			}
+			return nil
+		}
+		comp.RunE = func(c *cobra.Command, args []string) error { return c.Help() }
+	}
 	return root
 }
 

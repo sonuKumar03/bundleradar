@@ -32,6 +32,13 @@ func (r *Registry) Register(resolver core.WorkspaceResolver) {
 
 // Resolve discovers targets using the first matching resolver.
 func (r *Registry) Resolve(ctx context.Context, root string) ([]core.Target, error) {
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, core.UsageErrorf("workspace root %q not found", root)
+	}
+	if !info.IsDir() {
+		return nil, core.UsageErrorf("workspace root %q is not a directory", root)
+	}
 	for _, res := range r.resolvers {
 		if res.Detect(root) {
 			return res.Resolve(ctx, root)

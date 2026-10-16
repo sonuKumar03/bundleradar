@@ -67,7 +67,14 @@ func newScanCommand() *cobra.Command {
 			defer func() { _ = cleanup() }()
 
 			if why != "" {
-				return reporters.NewWhy(why, format).Render(ctx, w, bundle)
+				rep := reporters.NewWhy(why, format)
+				if err := rep.Render(ctx, w, bundle); err != nil {
+					return err
+				}
+				if !rep.Found() {
+					return &UsageError{Err: fmt.Errorf("package %q not found in bundle", why)}
+				}
+				return nil
 			}
 
 			rep, err := client.Reporter(format)
