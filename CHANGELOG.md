@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Scan self-check: every scan verifies its own consistency (initial + lazy
+  equals emitted JavaScript for single-entry builds, initial chunks match the
+  initial total, entrypoints reference real chunks, module bytes fit their
+  chunk, initial roots were found). Failures are reported as `warnings` in
+  JSON, as warning lines in terminal/markdown output, as `BUNDLE_INVARIANT`
+  warnings from `gate`, and in the MCP `bundle_scan` result.
+
+### Fixed
+
+- esbuild parser reported 0 B lazy JavaScript; it now attributes the lazy
+  chunks reachable from each entry through dynamic imports (found by the
+  self-check).
+- Terminal scan showed the initial chunk count next to the lazy size; initial
+  and lazy lines now show their own chunk counts.
+
 ### Changed
 
 - Docs: skill references, agent docs and the docs site now cover JS-only

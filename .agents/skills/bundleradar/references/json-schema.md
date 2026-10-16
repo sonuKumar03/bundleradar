@@ -4,7 +4,7 @@ BundleRadar CLI JSON output currently has no explicit schema version. The fields
 
 ## Scan JSON (`bundleradar scan -f json`)
 
-- Root fields: `metadata`, `entrypoints`, `chunks`, `modules`, `assets`; `gzipEstimated` is optional.
+- Root fields: `metadata`, `entrypoints`, `chunks`, `modules`, `assets`; `gzipEstimated` and `warnings` are optional. `warnings` lists failed internal consistency checks; treat the numbers as unreliable when it is present and say so in the report.
 - `metadata`: `bundler`.
 - `entrypoints.<name>`: `name`, `initialBytes`, `initialGzipBytes`, `asyncBytes`, `chunkIds`. Byte totals are JavaScript only; stylesheets are reported through `assets` and `--max-css`.
 - `chunks[]`: `id`, `name`, `path`, `sizeBytes`, `gzipBytes`, optional `gzipEstimated`, `type` (`initial` / `async`), optional `entry`, `moduleIds`.

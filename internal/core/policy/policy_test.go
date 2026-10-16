@@ -197,3 +197,12 @@ func TestPolicy_TotalAndLazyBudgetsIgnoreCSSChunks(t *testing.T) {
 		t.Fatalf("CSS chunks must not count towards JS budgets: %+v", res.Violations)
 	}
 }
+
+func TestPolicy_SurfacesBundleInvariantWarnings(t *testing.T) {
+	b := core.NewBundle(core.Metadata{})
+	b.Warnings = []string{"initial (1) + lazy (0) bytes do not add up"}
+	res := policy.Evaluate(b, nil, policy.Policy{})
+	if !res.Passed || len(res.Warnings) != 1 || res.Warnings[0].Rule != "BUNDLE_INVARIANT" {
+		t.Fatalf("result = %+v, want a passing result carrying one BUNDLE_INVARIANT warning", res)
+	}
+}

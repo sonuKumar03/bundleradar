@@ -52,7 +52,12 @@ func (c *Client) Scan(ctx context.Context, opts ScanOptions) (*core.Bundle, erro
 		return nil, err
 	}
 
-	return p.Parse(ctx, target)
+	bundle, err := p.Parse(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	bundle.Warnings = bundle.CheckInvariants()
+	return bundle, nil
 }
 
 // Diff compares a base bundle with a current bundle.

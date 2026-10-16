@@ -243,6 +243,34 @@ func (p *EsbuildParser) Parse(ctx context.Context, target core.Target) (*core.Bu
 			}
 		}
 
+		// Lazy JS reachable from this entry through dynamic imports.
+		asyncSeen := make(map[string]bool)
+		queue = queue[:0]
+		for p := range seen {
+			queue = append(queue, p)
+		}
+		for len(queue) > 0 {
+			path := queue[0]
+			queue = queue[1:]
+			for _, imp := range meta.Outputs[path].Imports {
+				if imp.Kind != "import-statement" && imp.Kind != "dynamic-import" {
+					continue
+				}
+				next := imp.Path
+				if _, ok := meta.Outputs[next]; !ok {
+					next = filepath.Clean(filepath.Join(filepath.Dir(path), next))
+				}
+				if _, ok := meta.Outputs[next]; !ok || seen[next] || asyncSeen[next] {
+					continue
+				}
+				asyncSeen[next] = true
+				queue = append(queue, next)
+				if i, ok := chunkByPath[next]; ok && !bundle.Chunks[i].IsCSS() {
+					ep.AsyncBytes += bundle.Chunks[i].SizeBytes
+				}
+			}
+		}
+
 		bundle.Entrypoints[out.EntryPoint] = ep
 	}
 

@@ -153,6 +153,9 @@ func handleScan(ctx context.Context, req mcpspec.CallToolRequest) (*mcpspec.Call
 		"totalAsync":   bundle.TotalAsyncBytes(),
 		"chunkCount":   len(bundle.Chunks),
 	}
+	if len(bundle.Warnings) > 0 {
+		result["warnings"] = bundle.Warnings
+	}
 
 	data, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {

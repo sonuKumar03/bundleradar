@@ -48,6 +48,9 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 	if bundle == nil {
 		return res
 	}
+	for _, w := range bundle.Warnings {
+		res.Warnings = append(res.Warnings, Violation{Severity: "warning", Rule: "BUNDLE_INVARIANT", Message: w})
+	}
 
 	// 1. MaxInitial check (per entrypoint and overall)
 	if p.MaxInitial != nil {

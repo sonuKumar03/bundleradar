@@ -367,3 +367,18 @@ func TestInitialBytesExcludeStylesheets(t *testing.T) {
 		t.Fatalf("esbuild CSS = %d, want 30", got)
 	}
 }
+
+func TestEsbuildAttributesLazyChunksToTheEntry(t *testing.T) {
+	stats := writeStats(t, "meta.json", `{"inputs":{"src/main.ts":{},"src/lazy.ts":{}},"outputs":{"out/main.js":{"bytes":100,"entryPoint":"src/main.ts","imports":[{"path":"out/chunk-LAZY.js","kind":"dynamic-import"}],"inputs":{"src/main.ts":{"bytesInOutput":100}}},"out/chunk-LAZY.js":{"bytes":400,"imports":[],"inputs":{"src/lazy.ts":{"bytesInOutput":400}}},"out/app.css":{"bytes":70,"imports":[],"inputs":{}}}}`)
+	bundle, err := (&parsers.EsbuildParser{}).Parse(context.Background(), core.Target{StatsPath: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ep := bundle.Entrypoints["src/main.ts"]
+	if ep.InitialBytes != 100 || ep.AsyncBytes != 400 {
+		t.Fatalf("initial=%d lazy=%d, want 100 and 400 (CSS excluded)", ep.InitialBytes, ep.AsyncBytes)
+	}
+	if w := bundle.CheckInvariants(); len(w) != 0 {
+		t.Fatalf("a correctly parsed bundle must pass its own invariants: %v", w)
+	}
+}

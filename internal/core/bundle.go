@@ -33,6 +33,8 @@ type Bundle struct {
 	// GzipEstimated is true when any chunk or asset gzip size was approximated
 	// from a ratio because the emitted artifact was not available on disk.
 	GzipEstimated bool `json:"gzipEstimated,omitempty"`
+	// Warnings lists failed internal consistency checks (see CheckInvariants).
+	Warnings []string `json:"warnings,omitempty"`
 
 	// Graph is the module import graph when the bundler's stats expose it.
 	Graph *ImportGraph `json:"-"`

@@ -167,3 +167,23 @@ func TestReporters_DiffMarkdown(t *testing.T) {
 		t.Fatalf("missing changed packages table: %s", out)
 	}
 }
+
+func TestReporters_ShowBundleWarnings(t *testing.T) {
+	bundle := core.NewBundle(core.Metadata{Bundler: "angular"})
+	bundle.AddEntrypoint("main", core.Entrypoint{Name: "main", InitialBytes: 10})
+	bundle.Warnings = []string{"initial (10) + lazy (0) bytes do not add up to the 99 bytes of emitted JavaScript"}
+
+	for _, format := range []string{"terminal", "markdown", "json"} {
+		rep, err := reporters.New(format)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out bytes.Buffer
+		if err := rep.Render(context.Background(), &out, bundle); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out.String(), "do not add up") {
+			t.Errorf("%s output hides the warning:\n%s", format, out.String())
+		}
+	}
+}

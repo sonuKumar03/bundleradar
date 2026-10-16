@@ -181,6 +181,7 @@ The CLI emits the following observed fields with `--format json`. These outputs 
 | `modules[]` | Input details: `id`, `package`, `sizeBytes`, `gzipBytes`, `isAppCode`, and `chunkIds`; version and per-chunk fields may be present when available. |
 | `assets[]` | Auxiliary output details: `path`, `sizeBytes`, `gzipBytes`, and `mimeType`. |
 | `gzipEstimated` | Optional indicator that gzip sizes were estimated rather than measured. |
+| `warnings` | Optional list of failed self-consistency checks (e.g. initial + lazy bytes not adding up to emitted JavaScript). When present, treat sizes as unreliable. |
 
 ### Trace JSON (via `--why`)
 

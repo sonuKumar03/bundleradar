@@ -31,6 +31,13 @@ func (r *MarkdownReporter) Render(ctx context.Context, w io.Writer, data any) er
 		}
 		sb.WriteString("\n")
 
+		for _, w := range v.Warnings {
+			fmt.Fprintf(&sb, "> ⚠️ %s\n", w)
+		}
+		if len(v.Warnings) > 0 {
+			sb.WriteString("\n")
+		}
+
 		top := v.TopPackages(10)
 		if len(top) > 0 {
 			sb.WriteString("### 📦 Top Contributing NPM Packages\n\n")

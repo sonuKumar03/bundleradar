@@ -26,14 +26,26 @@ func (r *TerminalReporter) Render(ctx context.Context, w io.Writer, data any) er
 	case *core.Bundle:
 		sb.WriteString("\n⚡ BUNDLERADAR BUNDLE SCAN\n")
 		sb.WriteString("-------------------------------------------------------------\n")
+		asyncChunks := 0
+		for _, c := range v.Chunks {
+			if c.Type == core.LoadTypeAsync && !c.IsCSS() {
+				asyncChunks++
+			}
+		}
 		for name, ep := range v.Entrypoints {
 			fmt.Fprintf(&sb, "Entrypoint %q:\n", name)
-			fmt.Fprintf(&sb, "  Initial JavaScript:   %s [%s%s gzip]\n", formatBytes(ep.InitialBytes), gzipTilde(v.GzipEstimated), formatBytes(ep.InitialGzipBytes))
-			fmt.Fprintf(&sb, "  Async / Lazy Chunks:  %s (%d chunks)\n", formatBytes(ep.AsyncBytes), len(ep.ChunkIDs))
+			fmt.Fprintf(&sb, "  Initial JavaScript:   %s [%s%s gzip] (%d chunks)\n", formatBytes(ep.InitialBytes), gzipTilde(v.GzipEstimated), formatBytes(ep.InitialGzipBytes), len(ep.ChunkIDs))
+			fmt.Fprintf(&sb, "  Async / Lazy Chunks:  %s (%d chunks)\n", formatBytes(ep.AsyncBytes), asyncChunks)
 		}
 		sb.WriteString("\n")
 		if v.GzipEstimated {
 			sb.WriteString("  gzip sizes are estimates (emitted files not found on disk)\n\n")
+		}
+		for _, w := range v.Warnings {
+			fmt.Fprintf(&sb, "  ⚠️  %s\n", w)
+		}
+		if len(v.Warnings) > 0 {
+			sb.WriteString("\n")
 		}
 
 		limit := 5
