@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-10-17
+
+### Fixed
+
+- GitHub Action: scan and workspace JSON are passed to `node` via stdin instead
+  of a command-line argument, which failed with "Argument list too long" for
+  large projects (the OS caps a single argument at 128 KiB).
+- GitHub Action: `stats.json` auto-detection skips `.nx`, `.angular`, `.turbo`
+  and `.cache`, and lists the candidate paths when several remain.
+- CLI exit codes: unknown subcommands, unknown `completion` shells,
+  `scan --why` for a package that is not in the bundle, and a missing
+  `workspace --root` now exit 2 (usage error) as documented. `--why -f json`
+  still prints the structured `found: false` result first.
+- `--bundler X` on a file clearly produced by another bundler now fails and
+  names the detected format; overrides for unrecognised files still work.
+
 ## [2.7.0] - 2026-10-16
 
 ### Added
@@ -283,7 +299,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.7.0...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.7.1...HEAD
+[2.7.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.5.1...v2.6.0
