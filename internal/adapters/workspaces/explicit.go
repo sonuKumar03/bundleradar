@@ -2,7 +2,6 @@ package workspaces
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
@@ -30,7 +29,7 @@ func (r *ExplicitResolver) Resolve(ctx context.Context, root string) ([]core.Tar
 		}
 		eqIdx := strings.Index(spec, "=")
 		if eqIdx <= 0 {
-			return nil, fmt.Errorf("invalid target spec %q: expected format name=stats_path[:dist_path]", spec)
+			return nil, core.UsageErrorf("invalid target spec %q: expected format name=stats_path[:dist_path]", spec)
 		}
 		name := strings.TrimSpace(spec[:eqIdx])
 		rest := strings.TrimSpace(spec[eqIdx+1:])

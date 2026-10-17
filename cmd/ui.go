@@ -50,7 +50,7 @@ trace package bloat with directed BFS ingress chains, and monitor size metrics.`
 			if len(args) > 0 {
 				statsPath = args[0]
 				if _, err := os.Stat(statsPath); os.IsNotExist(err) {
-					return &UsageError{Err: fmt.Errorf("stats file not found: %s", statsPath)}
+					return fmt.Errorf("stats file not found: %s", statsPath)
 				}
 			} else {
 				statsPath = autoDiscoverStatsFile(".")

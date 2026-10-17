@@ -89,3 +89,44 @@ func TestWorkspaceRootMustExist(t *testing.T) {
 		t.Fatalf("empty root: code=%d err=%s", code, stderr)
 	}
 }
+
+func TestArgCountAndGroupErrorsAreUsageErrors(t *testing.T) {
+	stats := filepath.Join("..", "testdata", "minimal", "stats.json")
+	for name, args := range map[string][]string{
+		"scan two paths":        {"scan", stats, stats},
+		"history show no id":    {"history", "show"},
+		"history save no path":  {"history", "save"},
+		"history unknown sub":   {"history", "nope"},
+		"workspace unknown sub": {"workspace", "nope"},
+		"completion extra arg":  {"completion", "bash", "extra"},
+	} {
+		if code, _, stderr := run(t, args...); code != cmd.ExitCodeUsage {
+			t.Errorf("%s: want exit %d, got %d (%s)", name, cmd.ExitCodeUsage, code, stderr)
+		}
+	}
+}
+
+func TestDiffRejectsInvalidDriftThreshold(t *testing.T) {
+	stats := filepath.Join("..", "testdata", "minimal", "stats.json")
+	code, _, stderr := run(t, "diff", stats, "--against", stats, "--drift-threshold", "5XYZ")
+	if code != cmd.ExitCodeUsage || !strings.Contains(stderr, "drift-threshold") {
+		t.Fatalf("invalid drift: code=%d err=%s", code, stderr)
+	}
+	if code, _, stderr := run(t, "diff", stats, "--against", stats, "--drift-threshold", "2KB"); code != cmd.ExitCodeSuccess {
+		t.Fatalf("valid drift: code=%d err=%s", code, stderr)
+	}
+}
+
+func TestUIMissingStatsFileIsExecutionError(t *testing.T) {
+	code, _, stderr := run(t, "ui", "nope.json", "--open=false", "--port", "4399")
+	if code != cmd.ExitCodeExecution || !strings.Contains(stderr, "not found") {
+		t.Fatalf("ui missing stats: want exit %d, got %d (%s)", cmd.ExitCodeExecution, code, stderr)
+	}
+}
+
+func TestWorkspaceInvalidAppSpecIsUsageError(t *testing.T) {
+	code, _, stderr := run(t, "workspace", "list", "--app", "nonsense")
+	if code != cmd.ExitCodeUsage || !strings.Contains(stderr, "invalid target spec") {
+		t.Fatalf("invalid --app: code=%d err=%s", code, stderr)
+	}
+}

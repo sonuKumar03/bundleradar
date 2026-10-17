@@ -206,3 +206,36 @@ func TestPolicy_SurfacesBundleInvariantWarnings(t *testing.T) {
 		t.Fatalf("result = %+v, want a passing result carrying one BUNDLE_INVARIANT warning", res)
 	}
 }
+
+func TestDuplicatePackageViolationsAreDeterministic(t *testing.T) {
+	bundle := core.NewBundle(core.Metadata{})
+	for i, m := range []core.Module{
+		{ID: "node_modules/zeta/index.js", Package: "zeta", Version: "2.0.0"},
+		{ID: "node_modules/a/node_modules/zeta/index.js", Package: "zeta", Version: "1.0.0"},
+		{ID: "node_modules/alpha/index.js", Package: "alpha", Version: "3.0.0"},
+		{ID: "node_modules/b/node_modules/alpha/index.js", Package: "alpha", Version: "1.5.0"},
+		{ID: "node_modules/c/node_modules/alpha/index.js", Package: "alpha", Version: "2.0.0"},
+	} {
+		m.SizeBytes = int64(100 + i)
+		bundle.AddModule(m)
+	}
+
+	want := []string{
+		`Multiple bundled versions of "alpha" detected: 1.5.0, 2.0.0, 3.0.0`,
+		`Multiple bundled versions of "zeta" detected: 1.0.0, 2.0.0`,
+	}
+	// Map iteration is randomized, so repeat to make an unsorted
+	// implementation fail with overwhelming probability.
+	for run := 0; run < 200; run++ {
+		res := policy.Evaluate(bundle, nil, policy.Policy{DetectDuplicatePkgs: true})
+		var got []string
+		for _, v := range res.Violations {
+			if v.Rule == "DUPLICATE_PACKAGE_VER" {
+				got = append(got, v.Message)
+			}
+		}
+		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("run %d: violations not sorted/stable:\n got %q\nwant %q", run, got, want)
+		}
+	}
+}
