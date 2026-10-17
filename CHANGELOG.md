@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.2] - 2026-10-17
+
+### Fixed
+
+- A malformed `--drift-threshold` is rejected as a usage error (exit 2)
+  instead of silently falling back to the default.
+- Unknown subcommands and wrong argument counts on command groups (`history`,
+  `workspace`, ...) and bad `--app` specs exit 2 like other usage errors.
+- `ui` with a missing stats file exits 3, matching the other commands.
+- Duplicate-version violations are sorted, so `gate` output is identical
+  across runs.
+
 ## [2.7.1] - 2026-10-17
 
 ### Fixed
@@ -299,7 +311,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI budget gating.
 - GitHub Action for CI bundle checks with baseline artifacts.
 
-[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.7.1...HEAD
+[Unreleased]: https://github.com/sonuKumar03/bundleradar/compare/v2.7.2...HEAD
+[2.7.2]: https://github.com/sonuKumar03/bundleradar/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/sonuKumar03/bundleradar/compare/v2.6.0...v2.6.1
