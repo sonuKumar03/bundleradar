@@ -2,6 +2,7 @@ package policy
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/sonuKumar03/bundleradar/internal/core"
@@ -222,12 +223,21 @@ func Evaluate(bundle *core.Bundle, d *diff.BundleDiff, p Policy) EvaluationResul
 			pkgVersions[m.Package][m.Version] = true
 		}
 
-		for pkg, versions := range pkgVersions {
+		// Sort packages and versions so the violation list and message are
+		// identical across runs (map iteration order is randomized).
+		pkgNames := make([]string, 0, len(pkgVersions))
+		for pkg := range pkgVersions {
+			pkgNames = append(pkgNames, pkg)
+		}
+		sort.Strings(pkgNames)
+		for _, pkg := range pkgNames {
+			versions := pkgVersions[pkg]
 			if len(versions) > 1 {
 				vList := make([]string, 0, len(versions))
 				for v := range versions {
 					vList = append(vList, v)
 				}
+				sort.Strings(vList)
 				res.Passed = false
 				res.Violations = append(res.Violations, Violation{
 					Severity: "error",

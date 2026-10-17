@@ -32,6 +32,14 @@ func newDiffCommand() *cobra.Command {
 			if against == "" {
 				return &UsageError{Err: fmt.Errorf("--against <baseline_path_or_git_ref> is required")}
 			}
+			var driftBytes int64 = 1024
+			if driftThreshold != "" {
+				parsed, err := bundleradar.ParseBytes(driftThreshold)
+				if err != nil {
+					return &UsageError{Err: fmt.Errorf("invalid --drift-threshold %q: %w", driftThreshold, err)}
+				}
+				driftBytes = parsed
+			}
 
 			client := bundleradar.New()
 			ctx := c.Context()
@@ -49,13 +57,6 @@ func newDiffCommand() *cobra.Command {
 				return err
 			}
 			defer cleanupBase()
-
-			var driftBytes int64 = 1024
-			if driftThreshold != "" {
-				if parsed, err := bundleradar.ParseBytes(driftThreshold); err == nil {
-					driftBytes = parsed
-				}
-			}
 
 			diffResult := client.Diff(baseBundle, currentBundle, diff.Options{
 				DriftThreshold:   driftBytes,

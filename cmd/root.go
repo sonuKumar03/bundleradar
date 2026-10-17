@@ -91,7 +91,37 @@ estimates Gzip wire transfer sizes, tracks regressions, and enforces bundle size
 		}
 		comp.RunE = func(c *cobra.Command, args []string) error { return c.Help() }
 	}
+	hardenArgs(root)
 	return root
+}
+
+// hardenArgs makes argument-count errors and unknown subcommands of group
+// commands (history, workspace, ...) usage errors, so they exit 2 like flag errors.
+func hardenArgs(c *cobra.Command) {
+	for _, sub := range c.Commands() {
+		hardenArgs(sub)
+	}
+	if c.Args != nil {
+		orig := c.Args
+		c.Args = func(cc *cobra.Command, args []string) error {
+			err := orig(cc, args)
+			var u *UsageError
+			if err == nil || errors.As(err, &u) {
+				return err
+			}
+			return &UsageError{Err: err}
+		}
+		return
+	}
+	if c.HasSubCommands() && !c.Runnable() {
+		c.Args = func(cc *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return &UsageError{Err: fmt.Errorf("unknown command %q for %q", args[0], cc.CommandPath())}
+			}
+			return nil
+		}
+		c.RunE = func(cc *cobra.Command, args []string) error { return cc.Help() }
+	}
 }
 
 func Execute(args []string, stdout, stderr io.Writer) int {
